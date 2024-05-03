@@ -125,6 +125,10 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
                     if ( a == b ):
                         fim[a, b] += source_list[i, 2] * source_list[j, 2]
 
+    for a in range(0, num_ant):
+        for b in range(a + 1, num_ant):
+            fim[b, a] = np.conjugate(fim[a, b])
+
     fim = 2.0/sigma**2 * fim
 
     return fim
@@ -167,7 +171,7 @@ def calculate_fim(source_list, metafits_dir, sigma):
                 testfile.write(' '.join([str(abs(a)) for a in row]) + '\n')
 
         # Calculate the CRB, which is the inverse of the FIM
-        crb = np.linalg.inv(fim_cos)
+        crb = np.sqrt(np.linalg.inv(fim_cos))
 
         with open(f'crb_abs_{obs}.txt', 'w') as testfile:
             for row in crb:
