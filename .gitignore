@@ -1,0 +1,5 @@
+*.txt
+template
+__pycache__
+*.out
+*.pdf
