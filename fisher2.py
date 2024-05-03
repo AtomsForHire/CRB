@@ -185,10 +185,10 @@ if __name__ == '__main__':
 
     ra_ph = 72.5
     dec_ph = -13.35
-    sigma = 200e-3
+    sigma = 500e-3
 
-    srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
-    # srclist_dir = 'test.yaml'
+    # srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
+    srclist_dir = 'test.yaml'
     metafits_dir = '/scratch/mwaeor/ejong/SKAEOR15_145_data/rerun_1/solutions/'
 
     # Get observations
