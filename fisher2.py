@@ -48,7 +48,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     fov = lamb/D
     with open(srclist_dir) as f:
         temp = yaml.safe_load(f)
-        
+
         num_sources = 0
         for key in temp:
             num_sources += len(temp[key])
@@ -105,7 +105,6 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
         Output:
             - fim_cos, fisher information matrix
     """
-    # # NOTE: CALUCLATE FIM USING COS
 
     fim_cos = np.zeros((num_ant, num_ant), dtype=np.complex64)
 
@@ -199,7 +198,7 @@ if __name__ == '__main__':
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{time_str}] READING IN SOURCE LIST FROM: {srclist_dir}')
     t1 = time.time()
-    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, sigma)
+    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, sigma, 2, 4.4)
     t2 = time.time()
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{time_str}] READING IN TOOK: {t2 - t1}s')
