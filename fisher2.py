@@ -118,7 +118,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
                 for j in range(0, num_sources):
-                    fim[a, b] = source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
+                    fim[a, b] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
                                                                                (baseline_lengths[a, b, 0] * (source_list[i, 0] - source_list[j, 0]) +
                                                                                 baseline_lengths[a, b, 1] * (source_list[i, 1] - source_list[j, 1])))
 
@@ -126,8 +126,15 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
                         fim[a, b] += source_list[i, 2] * source_list[j, 2]
 
     for a in range(0, num_ant):
-        for b in range(a + 1, num_ant):
+        for b in range(a, num_ant):
             fim[b, a] = np.conjugate(fim[a, b])
+
+    # for i in range(0, num_sources):
+    #     for j in range(0, num_sources):
+    #         fim[:, :] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
+    #                                                                    (baseline_lengths[:, :, 0] * (source_list[i, 0] - source_list[j, 0]) +
+    #                                                                     baseline_lengths[:, :, 1] * (source_list[i, 1] - source_list[j, 1])))
+
 
     fim = 2.0/sigma**2 * fim
 
@@ -200,10 +207,10 @@ if __name__ == '__main__':
 
     ra_ph = 72.5
     dec_ph = -13.35
-    sigma = 500e-3
+    sigma = 200e-3
 
-    srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
-    # srclist_dir = 'test.yaml'
+    # srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
+    srclist_dir = 'test.yaml'
     metafits_dir = '/scratch/mwaeor/ejong/SKAEOR15_145_data/rerun_1/solutions/'
 
     # Get observations
