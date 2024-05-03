@@ -27,7 +27,7 @@ def get_obs_vec(directory):
 
     return order
 
-def get_source_list(filename, ra_ph, dec_ph, cut_off):
+def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     """
         Returns a list of sources from a sky model
 
@@ -35,6 +35,8 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off):
             - filename, filename of yaml sky model file
             - ra_ph, ra of phase centre
             - dec_ph, dec of phase centre
+            - lamb, wavelength
+            - D, distance between antenna
         Output:
             - source_list, number of rows is number of sources
                            column 0 are l coords
@@ -42,9 +44,11 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off):
                            column 2 are source brightness
     """
 
+    deg_to_pi = np.pi/180.0
+    fov = lamb/D
     with open(srclist_dir) as f:
         temp = yaml.safe_load(f)
-
+        
         num_sources = 0
         for key in temp:
             num_sources += len(temp[key])
@@ -61,8 +65,13 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off):
                 ra = data['ra']
                 dec = data['dec']
 
-                # Convert ra dec in deg to l, m direction cosines
                 dra = ra - ra_ph
+                drec = dec - dec_ph
+
+                # Check if sources sit within FOV
+                if ( np.sqrt((dra * deg_to_pi)**2 + (drec * deg_to_pi)**2) > fov ): continue
+
+                # Convert ra dec in deg to l, m direction cosines
                 l = np.cos(dec) * np.sin(ra)
                 m = np.sin(ra) * np.cos(dec_ph) - np.cos(dec) * \
                     np.sin(dec_ph) * np.cos(dra)
@@ -77,10 +86,6 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off):
 
                 temp_array = [l, m, source_intensity]
                 source_list.append(temp_array)
-                # source_list[continue_from, 0] = l
-                # source_list[continue_from, 1] = m
-                # source_list[continue_from, 2] = source_intensity
-                # continue_from += 1
 
     return np.array(source_list)
 
