@@ -90,8 +90,8 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     return np.array(source_list)
 
 
-@jit(nopython=True, cache=True, parallel=True)
-#@jit(nopython=True, cache=True)
+# @jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     """
         Function for executing the loop required to calculate the FIM
@@ -106,17 +106,39 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
             - fim_cos, fisher information matrix
     """
 
-    fim_cos = np.zeros((num_ant, num_ant), dtype=np.complex64)
+    fim = np.zeros((num_ant, num_ant), dtype=np.complex64)
 
     num_sources = len(source_list)
-    for k in range(0, num_sources):
-        for l in prange(k + 1, num_sources):
-            fim_cos[:, :] += 2 * source_list[k, 2] * source_list[l, 2] * (1 + np.cos(2 * np.pi * (baseline_lengths[:, :, 0] * (
-                source_list[k, 0] - source_list[l, 0]) + baseline_lengths[:, :, 1] * (source_list[k, 1] - source_list[l, 1]))))
+    # for k in range(0, num_sources):
+    #     for l in prange(k + 1, num_sources):
+    #         fim_cos[:, :] += 2 * source_list[k, 2] * source_list[l, 2] * (1 + np.cos(2 * np.pi * (baseline_lengths[:, :, 0] * (
+    #             source_list[k, 0] - source_list[l, 0]) + baseline_lengths[:, :, 1] * (source_list[k, 1] - source_list[l, 1]))))
 
-    fim_cos = 2.0/sigma**2 * fim_cos
+    for a in range(0, num_ant):
+        for b in range(a, num_ant):
+            for i in range(0, num_sources):
+                for j in range(0, num_sources):
+                    fim[a, b] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
+                                                                               (baseline_lengths[a, b, 0] * (source_list[i, 0] - source_list[j, 0]) +
+                                                                                baseline_lengths[a, b, 1] * (source_list[i, 1] - source_list[j, 1])))
 
-    return fim_cos
+                    if ( a == b ):
+                        fim[a, b] += source_list[i, 2] * source_list[j, 2]
+
+    for a in range(0, num_ant):
+        for b in range(a, num_ant):
+            fim[b, a] = np.conjugate(fim[a, b])
+
+    # for i in range(0, num_sources):
+    #     for j in range(0, num_sources):
+    #         fim[:, :] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
+    #                                                                    (baseline_lengths[:, :, 0] * (source_list[i, 0] - source_list[j, 0]) +
+    #                                                                     baseline_lengths[:, :, 1] * (source_list[i, 1] - source_list[j, 1])))
+
+
+    fim = 2.0/sigma**2 * fim
+
+    return fim
 
 def calculate_fim(source_list, metafits_dir, sigma):
     """
@@ -156,7 +178,7 @@ def calculate_fim(source_list, metafits_dir, sigma):
                 testfile.write(' '.join([str(abs(a)) for a in row]) + '\n')
 
         # Calculate the CRB, which is the inverse of the FIM
-        crb = np.linalg.inv(fim_cos)
+        crb = np.sqrt(np.linalg.inv(fim_cos))
 
         with open(f'crb_abs_{obs}.txt', 'w') as testfile:
             for row in crb:
