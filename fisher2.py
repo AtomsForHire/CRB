@@ -114,6 +114,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     #         fim_cos[:, :] += 2 * source_list[k, 2] * source_list[l, 2] * (1 + np.cos(2 * np.pi * (baseline_lengths[:, :, 0] * (
     #             source_list[k, 0] - source_list[l, 0]) + baseline_lengths[:, :, 1] * (source_list[k, 1] - source_list[l, 1]))))
 
+    baseline_lengths = baseline_lengths / 2.0
     for a in range(0, num_ant):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
