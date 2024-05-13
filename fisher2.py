@@ -44,7 +44,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
                            column 2 are source brightness
     """
 
-    deg_to_pi = np.pi/180.0
+    deg_to_rad = np.pi/180.0
     fov = lamb/D
     with open(srclist_dir) as f:
         temp = yaml.safe_load(f)
@@ -69,7 +69,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
                 drec = dec - dec_ph
 
                 # Check if sources sit within FOV
-                if ( np.sqrt((dra * deg_to_pi)**2 + (drec * deg_to_pi)**2) > fov ): continue
+                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov ): continue
 
                 # Convert ra dec in deg to l, m direction cosines
                 l = np.cos(dec) * np.sin(ra)
@@ -84,7 +84,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
 
                 if (source_intensity < cut_off): continue
 
-                temp_array = [l, m, source_intensity]
+                temp_array = [ra, dec, source_intensity]
                 source_list.append(temp_array)
 
     return np.array(source_list)
@@ -124,7 +124,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
                                                                                 baseline_lengths[a, b, 1] * (source_list[i, 1] - source_list[j, 1])))
 
                     if ( a == b ):
-                        fim[a, b] += source_list[i, 2] * source_list[j, 2]
+                        fim[a, b] += 127 * (source_list[i, 2] * source_list[j, 2]) + (4 * source_list[i, 2] * source_list[j, 2])
 
     for a in range(0, num_ant):
         for b in range(a, num_ant):
@@ -208,7 +208,7 @@ if __name__ == '__main__':
 
     ra_ph = 72.5
     dec_ph = -13.35
-    sigma = 200e-3
+    sigma = 500e-3
 
     srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
     # srclist_dir = 'test.yaml'
@@ -226,6 +226,10 @@ if __name__ == '__main__':
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{time_str}] READING IN TOOK: {t2 - t1}s')
     print(f'[{time_str}] NUMBER OF SOURCES: {len(source_list)}')
+    print(f'[{time_str}] TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS')
+    sorted_source_list = source_list[source_list[:, 2].argsort()]
+    print(sorted_source_list[-10:])
+    sys.exit()
 
     # Calculate FIM
     print(f'[{time_str}] CALCULATING THE FIM')
