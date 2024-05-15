@@ -1,0 +1,7 @@
+ra: 72.5
+dec: -13.5
+noise: 100e-3
+lambda: 2
+D: 4.4
+srclist: "test.yaml"
+metafits: '/scratch/mwaeor/ejong/SKAEOR15_145_data/rerun_1/solutions/'
