@@ -9,6 +9,48 @@ import os
 import time
 import datetime
 
+def get_config(filename):
+    with open(filename) as f:
+        temp = yaml.safe_load(f)
+
+        if ("ra" in temp.keys()):
+            ra = temp["ra"]
+        else:
+            sys.exit("Please include ra in config file")
+
+        if ("dec" in temp.keys()):
+            dec = temp["dec"]
+        else:
+            sys.exit("Please include dec in config file")
+
+        if ("T_sys" in temp.keys()):
+            T_sys = float(temp["T_sys"])
+        else:
+            sys.exit("Please include T_sys in config file")
+
+        if ("lambda" in temp.keys()):
+            lamb = temp["lambda"]
+        else:
+            sys.exit("Please include lambda in config file")
+
+        if ("D" in temp.keys()):
+            D = temp["D"]
+        else:
+            sys.exit("Please include D in config file")
+
+        if ("srclist" in temp.keys()):
+            srclist = temp["srclist"]
+        else:
+            sys.exit("Please include srclist in config file")
+
+        if ("metafits" in temp.keys()):
+            metafits = temp["metafits"]
+        else:
+            sys.exit("Please include metafits in config file")
+
+    return ra, dec, T_sys, lamb, D, srclist, metafits
+
+
 def print_with_time(string):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{time_str}] ' + string)
@@ -198,26 +240,39 @@ def calculate_fim(source_list, metafits_dir, sigma):
         plt.matshow(abs(fim_cos))
         plt.colorbar()
         plt.title(obs + " FIM")
-        plt.savefig("fim_cos.pdf")
+        plt.savefig("fim_cos.pdf", bbox_inches = "tight")
         plt.clf()
         
         plt.matshow(abs(crb))
         plt.colorbar()
         plt.title(obs + " CRB")
-        plt.savefig("crb.pdf")
+        plt.savefig("crb.pdf", bbox_inches = "tight")
         plt.clf()
 
 
-# TODO: IMPLEMENT RADIOMETER EQUATION
+# https://slideplayer.com/slide/15019308/
+def get_rms(T_sys):
+    k = 1
+    A_eff = 1
+    N = 128
+    bandwidth = 10e3
+    t = 120
+
+    # return (2 * k * T_sys) / (A_eff * np.sqrt(N * (N - 1) * bandwidth * t))
+    # For now calucate the approximate ideal radiometer equation
+    return T_sys / np.sqrt(bandwidth * t)
+
 if __name__ == '__main__':
 
-    ra_ph = 72.5
-    dec_ph = -13.35
-    sigma = 300e-3
+    if (len(sys.argv) < 2):
+        sys.exit("Please provide name of the config yaml file")
 
-    # srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
-    srclist_dir = 'test.yaml'
-    metafits_dir = '/scratch/mwaeor/ejong/SKAEOR15_145_data/rerun_1/solutions/'
+    config = sys.argv[1]
+    ra_ph, dec_ph, sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
+    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={sys} lambda={lamb} D={D}')
+
+    sigma = get_rms(sys)
+    print_with_time(f'CALCULATED NOISE: {sys}')
 
     # Get observations
     get_obs_vec(metafits_dir)
