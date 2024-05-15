@@ -1,6 +1,6 @@
 ra: 72.5
 dec: -13.5
-noise: 100e-3
+T_sys: 100e-3
 lambda: 2
 D: 4.4
 srclist: "test.yaml"

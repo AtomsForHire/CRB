@@ -23,10 +23,10 @@ def get_config(filename):
         else:
             sys.exit("Please include dec in config file")
 
-        if ("noise" in temp.keys()):
-            noise = float(temp["noise"])
+        if ("T_sys" in temp.keys()):
+            T_sys = float(temp["T_sys"])
         else:
-            sys.exit("Please include noise in config file")
+            sys.exit("Please include T_sys in config file")
 
         if ("lambda" in temp.keys()):
             lamb = temp["lambda"]
@@ -48,7 +48,7 @@ def get_config(filename):
         else:
             sys.exit("Please include metafits in config file")
 
-    return ra, dec, noise, lamb, D, srclist, metafits
+    return ra, dec, T_sys, lamb, D, srclist, metafits
 
 
 def print_with_time(string):
@@ -250,23 +250,30 @@ def calculate_fim(source_list, metafits_dir, sigma):
         plt.clf()
 
 
-# TODO: IMPLEMENT RADIOMETER EQUATION
+# https://slideplayer.com/slide/15019308/
+def get_rms(T_sys):
+    k = 1
+    A_eff = 1
+    N = 128
+    bandwidth = 10e3
+    t = 120
+
+    # return (2 * k * T_sys) / (A_eff * np.sqrt(N * (N - 1) * bandwidth * t))
+    # For now calucate the approximate ideal radiometer equation
+    return T_sys / np.sqrt(bandwidth * t)
+
 if __name__ == '__main__':
 
     if (len(sys.argv) < 2):
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
-    ra_ph, dec_ph, sigma, lamb, D, srclist_dir, metafits_dir = get_config(config)
-    # ra_ph = 72.5
-    # dec_ph = -13.35
-    # sigma = 300e-3
+    ra_ph, dec_ph, sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
+    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={sys} lambda={lamb} D={D}')
 
-    #srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
-    # srclist_dir = 'test.yaml'
-    # metafits_dir = '/scratch/mwaeor/ejong/SKAEOR15_145_data/rerun_1/solutions/'
+    sigma = get_rms(sys)
+    print_with_time(f'CALCULATED NOISE: {sys}')
 
-    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} noise={sigma} lambda={lamb} D={D}')
     # Get observations
     get_obs_vec(metafits_dir)
 
