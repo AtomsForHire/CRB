@@ -131,7 +131,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
 
                 if (source_intensity < cut_off): continue
 
-                temp_array = [ra, dec, source_intensity]
+                temp_array = [l, m, source_intensity]
                 source_list.append(temp_array)
 
     return np.array(source_list)
