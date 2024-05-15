@@ -9,6 +9,11 @@ import os
 import time
 import datetime
 
+def print_with_time(string):
+    time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f'[{time_str}] ' + string)
+
+
 def get_obs_vec(directory):
     """
         Get list of observation ids
@@ -69,7 +74,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
                 drec = dec - dec_ph
 
                 # Check if sources sit within FOV
-                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov ): continue
+                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov/2 ): continue
 
                 # Convert ra dec in deg to l, m direction cosines
                 l = np.cos(dec) * np.sin(ra)
@@ -167,8 +172,8 @@ def calculate_fim(source_list, metafits_dir, sigma):
         t2 = time.time()
 
         time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f'[{time_str}] CALCULATING TOOK: {t2 - t1}s')
-        print(f'[{time_str}] IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}')
+        print_with_time(f'CALCULATING TOOK: {t2 - t1}s')
+        print_with_time(f'IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}')
 
         with open(f'matrix_complex_cos_{obs}.txt', 'w') as testfile:
             for row in fim_cos:
@@ -208,7 +213,7 @@ if __name__ == '__main__':
 
     ra_ph = 72.5
     dec_ph = -13.35
-    sigma = 500e-3
+    sigma = 300e-3
 
     srclist_dir = '/scratch/mwaeor/ejong/srclist/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml'
     # srclist_dir = 'test.yaml'
@@ -218,19 +223,18 @@ if __name__ == '__main__':
     get_obs_vec(metafits_dir)
 
     # Get source list
-    time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f'[{time_str}] READING IN SOURCE LIST FROM: {srclist_dir}')
+    print_with_time(f'READING IN SOURCE LIST FROM: {srclist_dir}')
     t1 = time.time()
     source_list = get_source_list(srclist_dir, ra_ph, dec_ph, sigma, 2, 4.4)
     t2 = time.time()
-    time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f'[{time_str}] READING IN TOOK: {t2 - t1}s')
-    print(f'[{time_str}] NUMBER OF SOURCES: {len(source_list)}')
-    print(f'[{time_str}] TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS')
+
+    print_with_time(f'READING IN TOOK: {t2 - t1}s')
+    print_with_time(f'NUMBER OF SOURCES: {len(source_list)}')
+    print_with_time(f'TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS')
     sorted_source_list = source_list[source_list[:, 2].argsort()]
     print(sorted_source_list[-10:])
-    sys.exit()
+
 
     # Calculate FIM
-    print(f'[{time_str}] CALCULATING THE FIM')
+    print_with_time(f'CALCULATING THE FIM')
     calculate_fim(source_list, metafits_dir, sigma)
