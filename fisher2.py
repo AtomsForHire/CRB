@@ -1,50 +1,52 @@
-import numpy as np
+import datetime
+import os
+import sys
+import time
+
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy.constants as const
 import yaml
-from scipy.linalg import ishermitian
 from mwa_qa import read_metafits
 from numba import jit, prange
-import sys
-import os
-import time
-import datetime
-import scipy.constants as const
+from scipy.linalg import ishermitian
+
 
 def get_config(filename):
     with open(filename) as f:
         temp = yaml.safe_load(f)
 
-        if ("ra" in temp.keys()):
+        if "ra" in temp.keys():
             ra = temp["ra"]
         else:
             sys.exit("Please include ra in config file")
 
-        if ("dec" in temp.keys()):
+        if "dec" in temp.keys():
             dec = temp["dec"]
         else:
             sys.exit("Please include dec in config file")
 
-        if ("T_sys" in temp.keys()):
+        if "T_sys" in temp.keys():
             T_sys = float(temp["T_sys"])
         else:
             sys.exit("Please include T_sys in config file")
 
-        if ("lambda" in temp.keys()):
+        if "lambda" in temp.keys():
             lamb = temp["lambda"]
         else:
             sys.exit("Please include lambda in config file")
 
-        if ("D" in temp.keys()):
+        if "D" in temp.keys():
             D = temp["D"]
         else:
             sys.exit("Please include D in config file")
 
-        if ("srclist" in temp.keys()):
+        if "srclist" in temp.keys():
             srclist = temp["srclist"]
         else:
             sys.exit("Please include srclist in config file")
 
-        if ("metafits" in temp.keys()):
+        if "metafits" in temp.keys():
             metafits = temp["metafits"]
         else:
             sys.exit("Please include metafits in config file")
@@ -54,46 +56,47 @@ def get_config(filename):
 
 def print_with_time(string):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f'[{time_str}] ' + string)
+    print(f"[{time_str}] " + string)
 
 
 def get_obs_vec(directory):
     """
-        Get list of observation ids
-        Input:
-            - directory, string of path to directory containing metafits files
-        Output:
-            - order, ordered list of observation ids
+    Get list of observation ids
+    Input:
+        - directory, string of path to directory containing metafits files
+    Output:
+        - order, ordered list of observation ids
     """
     order = list()
     for file in os.listdir(directory):
         if os.path.isfile(directory + file) and file.endswith(".metafits"):
-            obsid = file.split('.')[0]
+            obsid = file.split(".")[0]
             order.append(obsid)
 
     order = sorted(order)
 
     return order
 
+
 def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     """
-        Returns a list of sources from a sky model
+    Returns a list of sources from a sky model
 
-        Input:
-            - filename, filename of yaml sky model file
-            - ra_ph, ra of phase centre
-            - dec_ph, dec of phase centre
-            - lamb, wavelength
-            - D, distance between antenna
-        Output:
-            - source_list, number of rows is number of sources
-                           column 0 are l coords
-                           column 1 are m coords
-                           column 2 are source brightness
+    Input:
+        - filename, filename of yaml sky model file
+        - ra_ph, ra of phase centre
+        - dec_ph, dec of phase centre
+        - lamb, wavelength
+        - D, distance between antenna
+    Output:
+        - source_list, number of rows is number of sources
+                       column 0 are l coords
+                       column 1 are m coords
+                       column 2 are source brightness
     """
 
-    deg_to_rad = np.pi/180.0
-    fov = lamb/D
+    deg_to_rad = np.pi / 180.0
+    fov = lamb / D
     with open(srclist_dir) as f:
         temp = yaml.safe_load(f)
 
@@ -105,36 +108,53 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
         # source_list = np.zeros((num_sources, 3))
         source_list = list()
 
-        # continue_from = 0
         for key in temp:
             num_sources_in_key = len(temp[key])
             for i in range(0, num_sources_in_key):
                 data = temp[key][i]
-                ra = data['ra']
-                dec = data['dec']
+                ra = data["ra"]
+                dec = data["dec"]
 
                 dra = ra - ra_ph
-                drec = dec - dec_ph
+                ddec = dec - dec_ph
+
+                dist_from_ph = np.sqrt(
+                    (dra * deg_to_rad) ** 2 + (ddec * deg_to_rad) ** 2
+                )
 
                 # Check if sources sit within FOV
-                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov/2.0 ): continue
+                # if dist_from_ph > fov / 2.0:
+                #     continue
 
                 # Convert ra dec in deg to l, m direction cosines
-                l = np.cos(dec) * np.sin(ra)
-                m = np.sin(ra) * np.cos(dec_ph) - np.cos(dec) * \
-                    np.sin(dec_ph) * np.cos(dra)
+                l = np.cos(dec) * np.sin(dra)
+                m = np.sin(dec) * np.cos(dec_ph) - np.cos(dec) * np.sin(
+                    dec_ph
+                ) * np.cos(dra)
 
-                if ('power_law' in data['flux_type']):
-                    source_intensity = data['flux_type']['power_law']['fd']['i']
+                if np.sqrt(l**2 + m**2) > np.sin(fov / 2.0):
+                    continue
 
-                if ('curved_power_law' in data['flux_type']):
-                    source_intensity = data['flux_type']['curved_power_law']['fd']['i']
+                if "power_law" in data["flux_type"]:
+                    source_intensity = data["flux_type"]["power_law"]["fd"]["i"]
 
-                if (source_intensity < cut_off): continue
+                if "curved_power_law" in data["flux_type"]:
+                    source_intensity = data["flux_type"]["curved_power_law"]["fd"]["i"]
+
+                if source_intensity < cut_off:
+                    continue
 
                 temp_array = [l, m, source_intensity]
                 source_list.append(temp_array)
 
+    circle1 = plt.Circle((0, 0), np.sin(fov / 2.0), color="r")
+    temp = np.array(source_list)
+    plt.scatter(temp[:, 0], temp[:, 1])
+    ax = plt.gca()
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    ax.add_patch(circle1)
+    plt.savefig("sources.png")
     return np.array(source_list)
 
 
@@ -142,68 +162,201 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
 @jit(nopython=True, cache=True)
 def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     """
-        Function for executing the loop required to calculate the FIM
-        separate from the wrapper to allow Numba to work
+    Function for executing the loop required to calculate the FIM
+    separate from the wrapper to allow Numba to work
 
-        Input:
-            - source_list, 2D matrix of sources storing [l, m, intensity]
-            - baseline_lengths, 2D matrix containing lengths between antenna
-              i and j in both x and y coords [i, j, 0 or 1]
-            - num_ant, number of antennas
-        Output:
-            - fim_cos, fisher information matrix
+    Input:
+        - source_list, 2D matrix of sources storing [l, m, intensity]
+        - baseline_lengths, 2D matrix containing lengths between antenna
+          i and j in both x and y coords [i, j, 0 or 1]
+        - num_ant, number of antennas
+    Output:
+        - fim_cos, fisher information matrix
     """
 
     fim = np.zeros((num_ant, num_ant), dtype=np.complex64)
 
     num_sources = len(source_list)
-    # for k in range(0, num_sources):
-    #     for l in prange(k + 1, num_sources):
-    #         fim_cos[:, :] += 2 * source_list[k, 2] * source_list[l, 2] * (1 + np.cos(2 * np.pi * (baseline_lengths[:, :, 0] * (
-    #             source_list[k, 0] - source_list[l, 0]) + baseline_lengths[:, :, 1] * (source_list[k, 1] - source_list[l, 1]))))
 
     baseline_lengths = baseline_lengths / 2.0
     for a in range(0, num_ant):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
                 for j in range(0, num_sources):
-                    fim[a, b] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
-                                                                               (baseline_lengths[a, b, 0] * (source_list[i, 0] - source_list[j, 0]) +
-                                                                                baseline_lengths[a, b, 1] * (source_list[i, 1] - source_list[j, 1])))
+                    fim[a, b] += (
+                        source_list[i, 2]
+                        * source_list[j, 2]
+                        * np.exp(
+                            -2
+                            * np.pi
+                            * 1j
+                            * (
+                                baseline_lengths[a, b, 0]
+                                * (source_list[i, 0] - source_list[j, 0])
+                                + baseline_lengths[a, b, 1]
+                                * (source_list[i, 1] - source_list[j, 1])
+                            )
+                        )
+                    )
 
-                    if ( a == b ):
-                        fim[a, b] += 127 * (source_list[i, 2] * source_list[j, 2]) + 4 * (source_list[i, 2] * source_list[j, 2])
+                    if a == b:
+                        fim[a, b] += 127 * (
+                            source_list[i, 2] * source_list[j, 2]
+                        ) + 4 * (source_list[i, 2] * source_list[j, 2])
 
     for a in range(0, num_ant):
         for b in range(a, num_ant):
             fim[b, a] = np.conjugate(fim[a, b])
 
-    # for i in range(0, num_sources):
-    #     for j in range(0, num_sources):
-    #         fim[:, :] += source_list[i, 2] * source_list[j, 2] * np.exp(-2 * np.pi * 1j *
-    #                                                                    (baseline_lengths[:, :, 0] * (source_list[i, 0] - source_list[j, 0]) +
-    #                                                                     baseline_lengths[:, :, 1] * (source_list[i, 1] - source_list[j, 1])))
-
-
-    fim = 2.0/sigma**2 * fim
+    fim = 2.0 / sigma**2 * fim
 
     return fim
 
 
-def beam_form():
-    pass
+def beam_form(az_point, alt_point, lamb, D):
+    """Function for creating MWA beam
+
+    Parameters
+    ----------
+    az_point: float
+        azumith angle of the telescope's pointing (deg)
+    alt_point: float
+        altitude angle of the telescope's pointing (deg)
+    lamb: float
+        wavelength
+    D: float
+        length of tile
+    """
+
+    deg_to_pi = np.pi / 180.0
+    az_point = az_point * deg_to_pi
+    alt_point = alt_point * deg_to_pi
+
+    # Convert alt and az to l and m
+    l_point = np.sin(np.pi / 2.0 - alt_point) * np.sin(az_point)
+    m_point = np.sin(np.pi / 2.0 - alt_point) * np.cos(az_point)
+    print(l_point, m_point)
+
+    # NOTE: I don't know what this variable is
+    N_ortho = 1024
+
+    # Create dipoles in correct positions
+    sep = 1.1
+    x_len = 4
+    y_len = x_len
+    n_ant = x_len * y_len
+
+    x_loc = np.zeros(n_ant)
+    y_loc = np.zeros(n_ant)
+
+    count = 0
+    for i in range(0, x_len):
+        for j in range(0, y_len):
+            x_loc[count] = i * sep
+            y_loc[count] = j * sep
+            count += 1
+
+    # Shift everything to be centred around the centre of the tile
+    cent = [np.mean(x_loc), np.mean(y_loc)]
+
+    x_loc -= cent[0]
+    y_loc -= cent[1]
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+
+    cp = ax.plot(x_loc, y_loc, ".", color="grey")
+
+    ax.set_ylabel("Location Y metres")
+    ax.set_xlabel("Location X metres")
+    plt.savefig("dipoles.png")
+
+    # Create beams
+    station_beam_Xtheta = np.zeros((N_ortho, N_ortho), dtype="complex")
+    station_beam_Ytheta = np.zeros((N_ortho, N_ortho), dtype="complex")
+    station_beam_Xphi = np.zeros((N_ortho, N_ortho), dtype="complex")
+    station_beam_Yphi = np.zeros((N_ortho, N_ortho), dtype="complex")
+
+    # Set up l,m grid
+    lmax = 1.0
+    l = (np.arange(N_ortho) - N_ortho / 2.0) / (N_ortho / 2.0) * lmax
+    m = l
+
+    # NOTE: Don't know what this does
+    tot_phase = np.zeros((N_ortho, N_ortho), dtype="float")
+
+    # Create mask, anything outside the fov set to 0
+    fov = lamb / D
+
+    l_fov = np.sin(fov / 2.0)
+    mask = np.zeros((N_ortho, N_ortho), dtype="float")
+    for i in range(N_ortho):
+        for j in range(N_ortho):
+            if np.sqrt(l[i] ** 2 + m[j] ** 2) <= l_fov:
+                mask[i, j] = 1.0
+
+    # NOTE: I don't know what's going on here
+    for k in range(n_ant):
+        phase_x = (x_loc[k]) / lamb
+        phase_y = (y_loc[k]) / lamb
+
+        for j in range(N_ortho):
+            tot_phase[:, j] = (phase_x * (l - l_point)) + (phase_y * (m[j] - m_point))
+
+        station_beam_Xtheta[:, :] += (
+            np.cos(2.0 * np.pi * tot_phase) - 1j * np.sin(2.0 * np.pi * tot_phase)
+        ) * mask
+        station_beam_Ytheta[:, :] += (
+            np.cos(2.0 * np.pi * tot_phase) - 1j * np.sin(2.0 * np.pi * tot_phase)
+        ) * mask
+
+    XX = np.zeros((N_ortho, N_ortho), dtype="complex")
+    YY = XX
+    XY = XX
+    YX = XX
+
+    XX = station_beam_Xtheta[:, :] * np.conj(
+        station_beam_Xtheta[:, :]
+    ) + station_beam_Xphi[:, :] * np.conj(station_beam_Xphi[:, :])
+    YY = station_beam_Ytheta[:, :] * np.conj(
+        station_beam_Ytheta[:, :]
+    ) + station_beam_Yphi[:, :] * np.conj(station_beam_Yphi[:, :])
+    XY = station_beam_Xtheta[:, :] * np.conj(
+        station_beam_Ytheta[:, :]
+    ) + station_beam_Xphi[:, :] * np.conj(station_beam_Yphi[:, :])
+    YX = station_beam_Ytheta[:, :] * np.conj(
+        station_beam_Xtheta[:, :]
+    ) + station_beam_Yphi[:, :] * np.conj(station_beam_Xphi[:, :])
+
+    # Normalise
+    XX = XX / np.max(XX)
+    YY = YY / np.max(YY)
+
+    stokes_I = 0.5 * (XX + YY)
+    # Save beam
+    l_arr, m_arr = np.meshgrid(l, m)
+
+    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(stokes_I[:, :]))), 100)
+    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    ax.set_title("Autocorrelation beam")
+    ax.set_xlabel("l")
+    ax.set_ylabel("m")
+    plt.savefig("beam.png", bbox_inches="tight")
+
+    return l_arr, m_arr, stokes_I
+
 
 def calculate_fim(source_list, metafits_dir, sigma):
     """
-        Input:
-            - source_list, contains l, m and intensity values of sources
-            - metafits_dir, string to directory containing <obsid>.metafits files
+    Input:
+        - source_list, contains l, m and intensity values of sources
+        - metafits_dir, string to directory containing <obsid>.metafits files
     """
 
     obsids = get_obs_vec(metafits_dir)
 
     for obs in obsids[0:1]:
-        temp = read_metafits.Metafits(metafits_dir + str(obs) + '.metafits')
+        temp = read_metafits.Metafits(metafits_dir + str(obs) + ".metafits")
 
         # Calculate distances between each antenna
         baseline_lengths = np.zeros((temp.Nants, temp.Nants, 2))
@@ -219,88 +372,138 @@ def calculate_fim(source_list, metafits_dir, sigma):
         t2 = time.time()
 
         time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print_with_time(f'CALCULATING TOOK: {t2 - t1}s')
-        print_with_time(f'IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}')
+        print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
+        print_with_time(f"IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}")
 
-        with open(f'matrix_complex.txt', 'w') as f:
+        with open("matrix_complex.txt", "w") as f:
             for row in fim_cos:
-                f.write(' '.join([str(a) for a in row]) + '\n')
+                f.write(" ".join([str(a) for a in row]) + "\n")
 
-        with open(f'matrix_abs.txt', 'w') as f:
+        with open("matrix_abs.txt", "w") as f:
             for row in fim_cos:
-                f.write(' '.join([str(abs(a)) for a in row]) + '\n')
+                f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
         # Calculate the CRB, which is the inverse of the FIM
         crb = np.sqrt(np.linalg.inv(fim_cos))
 
-        with open(f'crb_abs.txt', 'w') as f:
+        with open("crb_abs.txt", "w") as f:
             for row in crb:
-                f.write(' '.join([str(abs(a)) for a in row]) + '\n')
+                f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
-        with open(f'crb_complex.txt', 'w') as f:
+        with open("crb_complex.txt", "w") as f:
             for row in crb:
-                f.write(' '.join([str(a) for a in row]) + '\n')
+                f.write(" ".join([str(a) for a in row]) + "\n")
 
         diag = np.diagonal(abs(crb))
 
-        with open(f'diag.txt', 'w') as f:
+        with open("diag.txt", "w") as f:
             for row in diag:
-                f.write(str(row) + '\n')
+                f.write(str(row) + "\n")
 
         plt.matshow(abs(fim_cos))
         plt.colorbar()
         plt.title(obs + " FIM")
-        plt.savefig("fim_cos.pdf", bbox_inches = "tight")
+        plt.savefig("fim_cos.pdf", bbox_inches="tight")
         plt.clf()
-        
+
         plt.matshow(abs(crb))
         plt.colorbar()
         plt.title(obs + " CRB")
-        plt.savefig("crb.pdf", bbox_inches = "tight")
+        plt.savefig("crb.pdf", bbox_inches="tight")
         plt.clf()
-        
+
         plt.plot(range(0, 128), diag)
-        plt.savefig("diag.pdf", bbox_inches = "tight")
+        plt.savefig("diag.pdf", bbox_inches="tight")
+
+
+def find_lm_index(l, m, l_vec, m_vec):
+    l_ind = np.argmin(abs(l - l_vec))
+    m_ind = np.argmin(abs(m - m_vec))
+
+    return l_ind, m_ind
+
+
+def attenuate(source_list, beam, l_arr, m_arr):
+    # l values are changing left to right in the matrix
+    # So grab the first row for comparison
+    l_vec = l_arr[0, :]
+
+    # m values are changing in the columns
+    m_vec = m_arr[:, 0]
+
+    for i in range(0, len(source_list)):
+        l_ind, m_ind = find_lm_index(source_list[i, 0], source_list[i, 1], l_vec, m_vec)
+        # print(
+        #     source_list[i, 0],
+        #     source_list[i, 1],
+        #     l_vec[l_ind],
+        #     m_vec[m_ind],
+        #     l_ind,
+        #     m_ind,
+        #     beam[l_ind, m_ind],
+        # )
+        source_list[i, 2] *= abs(beam[l_ind, m_ind])
+
+    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(beam[:, :]))), 100)
+    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    ax.scatter(source_list[:, 0], source_list[:, 1])
+    ax.set_title("Autocorrelation beam")
+    ax.set_xlabel("l")
+    ax.set_ylabel("m")
+    plt.savefig("beam.png", bbox_inches="tight")
+
+    return source_list
 
 
 # https://slideplayer.com/slide/15019308/
 def get_rms(T_sys):
     A_eff = 21
-    bandwidth = 10e3
+    bandwidth = 30e6
     t = 120
 
-    return 10**(-26) * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
+    print(const.k)
+    return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    if (len(sys.argv) < 2):
+    if len(sys.argv) < 2:
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
     ra_ph, dec_ph, T_sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
-    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}')
+    print_with_time(
+        f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
+    )
 
     sigma = get_rms(T_sys)
-    print_with_time(f'CALCULATED NOISE: {sigma}')
-    sys.exit()
+    print_with_time(f"CALCULATED NOISE: {sigma}")
 
     # Get observations
     get_obs_vec(metafits_dir)
 
     # Get source list
-    print_with_time(f'READING IN SOURCE LIST FROM: {srclist_dir}')
+    print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
     t1 = time.time()
     source_list = get_source_list(srclist_dir, ra_ph, dec_ph, sigma, 2, 4.4)
     t2 = time.time()
 
-    print_with_time(f'READING IN TOOK: {t2 - t1}s')
-    print_with_time(f'NUMBER OF SOURCES: {len(source_list)}')
-    print_with_time(f'TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS')
+    print_with_time(f"READING IN TOOK: {t2 - t1}s")
+    print_with_time(f"NUMBER OF SOURCES: {len(source_list)}")
+    print_with_time(f"TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS")
     sorted_source_list = source_list[source_list[:, 2].argsort()]
     print(sorted_source_list[-10:])
 
+    print_with_time("CALCULATING BEAM")
+    l_arr, m_arr, beam = beam_form(0, 90, lamb, D)
+
+    print_with_time("ATTENUATING WITH BEAM")
+    sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr)
+    print(sorted_source_list[-10:])
+
+    sys.exit()
 
     # Calculate FIM
-    print_with_time(f'CALCULATING THE FIM')
+    print_with_time("CALCULATING THE FIM")
     calculate_fim(source_list, metafits_dir, sigma)
