@@ -8,6 +8,7 @@ import sys
 import os
 import time
 import datetime
+import scipy.constants as const
 
 def get_config(filename):
     with open(filename) as f:
@@ -116,7 +117,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
                 drec = dec - dec_ph
 
                 # Check if sources sit within FOV
-                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov/2 ): continue
+                if ( np.sqrt((dra * deg_to_rad)**2 + (drec * deg_to_rad)**2) > fov/2.0 ): continue
 
                 # Convert ra dec in deg to l, m direction cosines
                 l = np.cos(dec) * np.sin(ra)
@@ -171,7 +172,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
                                                                                 baseline_lengths[a, b, 1] * (source_list[i, 1] - source_list[j, 1])))
 
                     if ( a == b ):
-                        fim[a, b] += 127 * (source_list[i, 2] * source_list[j, 2]) + (4 * source_list[i, 2] * source_list[j, 2])
+                        fim[a, b] += 127 * (source_list[i, 2] * source_list[j, 2]) + 4 * (source_list[i, 2] * source_list[j, 2])
 
     for a in range(0, num_ant):
         for b in range(a, num_ant):
@@ -187,6 +188,10 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     fim = 2.0/sigma**2 * fim
 
     return fim
+
+
+def beam_form():
+    pass
 
 def calculate_fim(source_list, metafits_dir, sigma):
     """
@@ -217,25 +222,30 @@ def calculate_fim(source_list, metafits_dir, sigma):
         print_with_time(f'CALCULATING TOOK: {t2 - t1}s')
         print_with_time(f'IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}')
 
-        with open(f'matrix_complex_cos_{obs}.txt', 'w') as testfile:
+        with open(f'matrix_complex.txt', 'w') as f:
             for row in fim_cos:
-                testfile.write(' '.join([str(a) for a in row]) + '\n')
+                f.write(' '.join([str(a) for a in row]) + '\n')
 
-        with open(f'matrix_abs_cos_{obs}.txt', 'w') as testfile:
+        with open(f'matrix_abs.txt', 'w') as f:
             for row in fim_cos:
-                testfile.write(' '.join([str(abs(a)) for a in row]) + '\n')
+                f.write(' '.join([str(abs(a)) for a in row]) + '\n')
 
         # Calculate the CRB, which is the inverse of the FIM
         crb = np.sqrt(np.linalg.inv(fim_cos))
 
-        with open(f'crb_abs_{obs}.txt', 'w') as testfile:
+        with open(f'crb_abs.txt', 'w') as f:
             for row in crb:
-                testfile.write(' '.join([str(abs(a)) for a in row]) + '\n')
+                f.write(' '.join([str(abs(a)) for a in row]) + '\n')
 
-        with open(f'crb_complex_{obs}.txt', 'w') as testfile:
+        with open(f'crb_complex.txt', 'w') as f:
             for row in crb:
-                testfile.write(' '.join([str(a) for a in row]) + '\n')
+                f.write(' '.join([str(a) for a in row]) + '\n')
 
+        diag = np.diagonal(abs(crb))
+
+        with open(f'diag.txt', 'w') as f:
+            for row in diag:
+                f.write(str(row) + '\n')
 
         plt.matshow(abs(fim_cos))
         plt.colorbar()
@@ -248,19 +258,19 @@ def calculate_fim(source_list, metafits_dir, sigma):
         plt.title(obs + " CRB")
         plt.savefig("crb.pdf", bbox_inches = "tight")
         plt.clf()
+        
+        plt.plot(range(0, 128), diag)
+        plt.savefig("diag.pdf", bbox_inches = "tight")
 
 
 # https://slideplayer.com/slide/15019308/
 def get_rms(T_sys):
-    k = 1
-    A_eff = 1
-    N = 128
+    A_eff = 21
     bandwidth = 10e3
     t = 120
 
-    # return (2 * k * T_sys) / (A_eff * np.sqrt(N * (N - 1) * bandwidth * t))
-    # For now calucate the approximate ideal radiometer equation
-    return T_sys / np.sqrt(bandwidth * t)
+    return 10**(-26) * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
+
 
 if __name__ == '__main__':
 
@@ -268,11 +278,12 @@ if __name__ == '__main__':
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
-    ra_ph, dec_ph, sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
-    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={sys} lambda={lamb} D={D}')
+    ra_ph, dec_ph, T_sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
+    print_with_time(f'INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}')
 
-    sigma = get_rms(sys)
-    print_with_time(f'CALCULATED NOISE: {sys}')
+    sigma = get_rms(T_sys)
+    print_with_time(f'CALCULATED NOISE: {sigma}')
+    sys.exit()
 
     # Get observations
     get_obs_vec(metafits_dir)
