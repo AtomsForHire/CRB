@@ -147,7 +147,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
                 temp_array = [l, m, source_intensity]
                 source_list.append(temp_array)
 
-    circle1 = plt.Circle((0, 0), np.sin(fov / 2.0), color="r")
+    circle1 = plt.Circle((0, 0), np.sin(fov / 2.0), color="r", alpha=0.2)
     temp = np.array(source_list)
     plt.scatter(temp[:, 0], temp[:, 1])
     ax = plt.gca()
@@ -235,7 +235,6 @@ def beam_form(az_point, alt_point, lamb, D):
     # Convert alt and az to l and m
     l_point = np.sin(np.pi / 2.0 - alt_point) * np.sin(az_point)
     m_point = np.sin(np.pi / 2.0 - alt_point) * np.cos(az_point)
-    print(l_point, m_point)
 
     # NOTE: I don't know what this variable is
     N_ortho = 1024
@@ -462,7 +461,6 @@ def get_rms(T_sys):
     bandwidth = 30e6
     t = 120
 
-    print(const.k)
     return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
 
 
@@ -501,8 +499,6 @@ if __name__ == "__main__":
     print_with_time("ATTENUATING WITH BEAM")
     sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr)
     print(sorted_source_list[-10:])
-
-    sys.exit()
 
     # Calculate FIM
     print_with_time("CALCULATING THE FIM")
