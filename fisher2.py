@@ -51,7 +51,12 @@ def get_config(filename):
         else:
             sys.exit("Please include metafits in config file")
 
-    return ra, dec, T_sys, lamb, D, srclist, metafits
+        if "bandwidth" in temp.keys():
+            bandwidth = temp["bandwidth"]
+        else:
+            sys.exit("Please include bandwidth in config file")
+
+    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits
 
 
 def print_with_time(string):
@@ -456,9 +461,8 @@ def attenuate(source_list, beam, l_arr, m_arr):
 
 
 # https://slideplayer.com/slide/15019308/
-def get_rms(T_sys):
+def get_rms(T_sys, bandwidth):
     A_eff = 21
-    bandwidth = 30e6
     t = 120
 
     return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
@@ -470,12 +474,15 @@ if __name__ == "__main__":
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
-    ra_ph, dec_ph, T_sys, lamb, D, srclist_dir, metafits_dir = get_config(config)
+    ra_ph, dec_ph, T_sys, lamb, D, bandwidth, srclist_dir, metafits_dir = get_config(
+        config
+    )
+
     print_with_time(
         f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
     )
 
-    sigma = get_rms(T_sys)
+    sigma = get_rms(T_sys, bandwidth)
     print_with_time(f"CALCULATED NOISE: {sigma}")
 
     # Get observations
