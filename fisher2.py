@@ -52,7 +52,7 @@ def get_config(filename):
             sys.exit("Please include metafits in config file")
 
         if "bandwidth" in temp.keys():
-            bandwidth = temp["bandwidth"]
+            bandwidth = float(temp["bandwidth"])
         else:
             sys.exit("Please include bandwidth in config file")
 
