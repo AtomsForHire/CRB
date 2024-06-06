@@ -10,6 +10,7 @@ import yaml
 from mwa_qa import read_metafits
 from numba import jit, prange
 from scipy.linalg import ishermitian
+from yaml import CLoader as Loader
 
 
 def get_config(filename):
@@ -103,7 +104,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     deg_to_rad = np.pi / 180.0
     fov = lamb / D
     with open(srclist_dir) as f:
-        temp = yaml.safe_load(f)
+        temp = yaml.load(f, Loader=Loader)
 
         num_sources = 0
         for key in temp:
@@ -151,6 +152,12 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
 
                 temp_array = [l, m, source_intensity]
                 source_list.append(temp_array)
+
+    if not source_list:
+        print_with_time(
+            f"NO SOURCES FOUND IN THIS FIELD WITH NOISE CALCULATED TO BE {cut_off}"
+        )
+        exit()
 
     circle1 = plt.Circle((0, 0), np.sin(fov / 2.0), color="r", alpha=0.2)
     temp = np.array(source_list)
@@ -491,7 +498,11 @@ if __name__ == "__main__":
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
     t1 = time.time()
-    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, sigma, 2, 4.4)
+    # NOTE: Should this be number of unique baselines?
+    # Or total number of baselines including redundant ones
+    # which would surmount to a large number
+    cut_off = 5 * (sigma / np.sqrt(8256))
+    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, 2, 4.4)
     t2 = time.time()
 
     print_with_time(f"READING IN TOOK: {t2 - t1}s")
