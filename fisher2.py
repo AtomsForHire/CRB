@@ -2,6 +2,7 @@ import datetime
 import os
 import sys
 import time
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,7 +58,12 @@ def get_config(filename):
         else:
             sys.exit("Please include bandwidth in config file")
 
-    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits
+        if "output" in temp.keys():
+            output = temp["output"]
+        else:
+            sys.exit("Please include output in config file")
+
+    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits, output
 
 
 def print_with_time(string):
@@ -84,7 +90,7 @@ def get_obs_vec(directory):
     return order
 
 
-def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
+def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
     """
     Returns a list of sources from a sky model
 
@@ -103,7 +109,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
 
     deg_to_rad = np.pi / 180.0
     fov = lamb / D
-    with open(srclist_dir) as f:
+    with open(filename) as f:
         temp = yaml.load(f, Loader=Loader)
 
         num_sources = 0
@@ -166,7 +172,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D):
     ax.set_xlim(-1, 1)
     ax.set_ylim(-1, 1)
     ax.add_patch(circle1)
-    plt.savefig("sources.png")
+    plt.savefig(output + "/" + "sources.png")
     return np.array(source_list)
 
 
@@ -225,7 +231,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     return fim
 
 
-def beam_form(az_point, alt_point, lamb, D):
+def beam_form(az_point, alt_point, lamb, D, output):
     """Function for creating MWA beam
 
     Parameters
@@ -279,7 +285,7 @@ def beam_form(az_point, alt_point, lamb, D):
 
     ax.set_ylabel("Location Y metres")
     ax.set_xlabel("Location X metres")
-    plt.savefig("dipoles.png")
+    plt.savefig(output + "/" + "dipoles.png")
 
     # Create beams
     station_beam_Xtheta = np.zeros((N_ortho, N_ortho), dtype="complex")
@@ -346,18 +352,18 @@ def beam_form(az_point, alt_point, lamb, D):
     # Save beam
     l_arr, m_arr = np.meshgrid(l, m)
 
-    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
-    cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(stokes_I[:, :]))), 100)
-    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
-    ax.set_title("Autocorrelation beam")
-    ax.set_xlabel("l")
-    ax.set_ylabel("m")
-    plt.savefig("beam.png", bbox_inches="tight")
+    # fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    # cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(stokes_I[:, :]))), 100)
+    # fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    # ax.set_title("Autocorrelation beam")
+    # ax.set_xlabel("l")
+    # ax.set_ylabel("m")
+    # plt.savefig(output + "/" + "beam.png", bbox_inches="tight")
 
     return l_arr, m_arr, stokes_I
 
 
-def calculate_fim(source_list, metafits_dir, sigma):
+def calculate_fim(source_list, metafits_dir, sigma, output):
     """
     Input:
         - source_list, contains l, m and intensity values of sources
@@ -386,45 +392,45 @@ def calculate_fim(source_list, metafits_dir, sigma):
         print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
         print_with_time(f"IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}")
 
-        with open("matrix_complex.txt", "w") as f:
+        with open(output + "/" + "matrix_complex.txt", "w") as f:
             for row in fim_cos:
                 f.write(" ".join([str(a) for a in row]) + "\n")
 
-        with open("matrix_abs.txt", "w") as f:
+        with open(output + "/" + "matrix_abs.txt", "w") as f:
             for row in fim_cos:
                 f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
         # Calculate the CRB, which is the inverse of the FIM
         crb = np.sqrt(np.linalg.inv(fim_cos))
 
-        with open("crb_abs.txt", "w") as f:
+        with open(output + "/" + "crb_abs.txt", "w") as f:
             for row in crb:
                 f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
-        with open("crb_complex.txt", "w") as f:
+        with open(output + "/" + "crb_complex.txt", "w") as f:
             for row in crb:
                 f.write(" ".join([str(a) for a in row]) + "\n")
 
         diag = np.diagonal(abs(crb))
 
-        with open("diag.txt", "w") as f:
+        with open(output + "/" + "diag.txt", "w") as f:
             for row in diag:
                 f.write(str(row) + "\n")
 
         plt.matshow(abs(fim_cos))
         plt.colorbar()
         plt.title(obs + " FIM")
-        plt.savefig("fim_cos.pdf", bbox_inches="tight")
+        plt.savefig(output + "/" + "fim_cos.pdf", bbox_inches="tight")
         plt.clf()
 
         plt.matshow(abs(crb))
         plt.colorbar()
         plt.title(obs + " CRB")
-        plt.savefig("crb.pdf", bbox_inches="tight")
+        plt.savefig(output + "/" + "crb.pdf", bbox_inches="tight")
         plt.clf()
 
         plt.plot(range(0, 128), diag)
-        plt.savefig("diag.pdf", bbox_inches="tight")
+        plt.savefig(output + "/" + "diag.pdf", bbox_inches="tight")
 
 
 def find_lm_index(l, m, l_vec, m_vec):
@@ -434,7 +440,7 @@ def find_lm_index(l, m, l_vec, m_vec):
     return l_ind, m_ind
 
 
-def attenuate(source_list, beam, l_arr, m_arr):
+def attenuate(source_list, beam, l_arr, m_arr, output):
     # l values are changing left to right in the matrix
     # So grab the first row for comparison
     l_vec = l_arr[0, :]
@@ -462,7 +468,7 @@ def attenuate(source_list, beam, l_arr, m_arr):
     ax.set_title("Autocorrelation beam")
     ax.set_xlabel("l")
     ax.set_ylabel("m")
-    plt.savefig("beam.png", bbox_inches="tight")
+    plt.savefig(output + "/" + "beam.png", bbox_inches="tight")
 
     return source_list
 
@@ -475,15 +481,17 @@ def get_rms(T_sys, bandwidth):
     return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
 
 
-if __name__ == "__main__":
+def main():
 
     if len(sys.argv) < 2:
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
-    ra_ph, dec_ph, T_sys, lamb, D, bandwidth, srclist_dir, metafits_dir = get_config(
-        config
+    ra_ph, dec_ph, T_sys, lamb, D, bandwidth, srclist_dir, metafits_dir, output = (
+        get_config(config)
     )
+
+    Path(output).mkdir(parents=True, exist_ok=True)
 
     print_with_time(
         f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
@@ -491,6 +499,8 @@ if __name__ == "__main__":
 
     sigma = get_rms(T_sys, bandwidth)
     print_with_time(f"CALCULATED NOISE: {sigma}")
+    cut_off = 5 * (sigma / np.sqrt(8256))
+    print_with_time(f"CALCULATED CUT OFF FOR SOURCES: {cut_off}")
 
     # Get observations
     get_obs_vec(metafits_dir)
@@ -501,8 +511,7 @@ if __name__ == "__main__":
     # NOTE: Should this be number of unique baselines?
     # Or total number of baselines including redundant ones
     # which would surmount to a large number
-    cut_off = 5 * (sigma / np.sqrt(8256))
-    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, 2, 4.4)
+    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, lamb, D, output)
     t2 = time.time()
 
     print_with_time(f"READING IN TOOK: {t2 - t1}s")
@@ -512,12 +521,16 @@ if __name__ == "__main__":
     print(sorted_source_list[-10:])
 
     print_with_time("CALCULATING BEAM")
-    l_arr, m_arr, beam = beam_form(0, 90, lamb, D)
+    l_arr, m_arr, beam = beam_form(0, 90, lamb, D, output)
 
     print_with_time("ATTENUATING WITH BEAM")
-    sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr)
+    sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr, output)
     print(sorted_source_list[-10:])
 
     # Calculate FIM
     print_with_time("CALCULATING THE FIM")
-    calculate_fim(source_list, metafits_dir, sigma)
+    calculate_fim(sorted_source_list, metafits_dir, sigma, output)
+
+
+if __name__ == "__main__":
+    main()
