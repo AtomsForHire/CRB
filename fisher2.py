@@ -69,7 +69,24 @@ def get_config(filename):
         else:
             sys.exit("Please include telescope in config file")
 
-    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits, output, telescope
+        if "int_time" in temp.keys():
+            int_time = float(temp["int_time"])
+        else:
+            sys.exit("Please include int_time in config file")
+
+    return (
+        ra,
+        dec,
+        T_sys,
+        lamb,
+        D,
+        bandwidth,
+        srclist,
+        metafits,
+        output,
+        telescope,
+        int_time,
+    )
 
 
 def print_with_time(string):
@@ -294,6 +311,15 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
     beam = (2 * jv(1, x) / x) ** 2
     beam[R == 0] = 1
 
+    # save full beam
+    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
+    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    ax.set_title("Airy Disk")
+    ax.set_xlabel("l")
+    ax.set_ylabel("m")
+    plt.savefig(output + "/" + "full_beam.png", bbox_inches="tight")
+
     # Create mask, anything outside the fov set to 0
     fov = lamb / D
 
@@ -306,14 +332,14 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
 
     beam *= mask
 
-    # save beam
+    # save masked beam
     fig, ax = plt.subplots(1, 1, figsize=(14, 12))
     cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
     fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
     ax.set_title("Airy Disk")
     ax.set_xlabel("l")
     ax.set_ylabel("m")
-    plt.savefig(output + "/" + "full_beam.png", bbox_inches="tight")
+    plt.savefig(output + "/" + "full_beam_masked.png", bbox_inches="tight")
 
     return l_arr, m_arr, beam
 
@@ -560,21 +586,41 @@ def attenuate(source_list, beam, l_arr, m_arr, output):
     fig, ax = plt.subplots(1, 1, figsize=(14, 12))
     cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(beam[:, :]))), 100)
     fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
-    ax.scatter(source_list[:, 0], source_list[:, 1])
+    ax.scatter(source_list[:, 0], source_list[:, 1], s=0.5, alpha=0.5)
     ax.set_title("Autocorrelation beam")
     ax.set_xlabel("l")
     ax.set_ylabel("m")
-    plt.savefig(output + "/" + "beam.png", bbox_inches="tight")
+    plt.savefig(output + "/" + "masked_beam_with_sources.png", bbox_inches="tight")
 
     return source_list
 
 
 # https://slideplayer.com/slide/15019308/
-def get_rms(T_sys, bandwidth):
-    A_eff = 21
-    t = 120
+def get_rms(T_sys, bandwidth, telescope, int_time):
+    """Calculate the radio interferometer equation
 
-    return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * t))
+    Parameters
+    ----------
+    T_sys: float
+        system noise
+    bandwidth: float
+        bandwidth of a measurement
+    telescope: string
+        mwa or ska
+    int_time: float
+        integration time
+
+    Returns
+    -------
+    result of equation
+    """
+
+    if telescope == "mwa":
+        A_eff = 21
+    elif telescope == "ska":
+        A_eff = np.pi * (35 / 2) ** 2
+
+    return 10**26 * (2 * const.k * T_sys) / (A_eff * np.sqrt(bandwidth * int_time))
 
 
 def main():
@@ -594,6 +640,7 @@ def main():
         metafits_dir,
         output,
         telescope,
+        int_time,
     ) = get_config(config)
 
     Path(output).mkdir(parents=True, exist_ok=True)
@@ -602,7 +649,7 @@ def main():
         f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
     )
 
-    sigma = get_rms(T_sys, bandwidth)
+    sigma = get_rms(T_sys, bandwidth, telescope, int_time)
     print_with_time(f"CALCULATED NOISE: {sigma}")
     cut_off = 5 * (sigma / np.sqrt(8256))
     print_with_time(f"CALCULATED CUT OFF FOR SOURCES: {cut_off}")
