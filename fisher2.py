@@ -11,6 +11,7 @@ import yaml
 from mwa_qa import read_metafits
 from numba import jit, prange
 from scipy.linalg import ishermitian
+from scipy.special import jv
 from yaml import CLoader as Loader
 
 
@@ -188,13 +189,20 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
 
-    Input:
-        - source_list, 2D matrix of sources storing [l, m, intensity]
-        - baseline_lengths, 2D matrix containing lengths between antenna
-          i and j in both x and y coords [i, j, 0 or 1]
-        - num_ant, number of antennas
-    Output:
-        - fim_cos, fisher information matrix
+    Paramters
+    ---------
+    source_list
+        2D matrix of sources storing [l, m, intensity]
+    baseline_lengths
+        2D matrix containing lengths between antenna
+        i and j in both x and y coords [i, j, 0 or 1]
+    num_ant
+        number of antennas
+
+    Returns
+    -------
+    fim_cos
+        fisher information matrix
     """
 
     fim = np.zeros((num_ant, num_ant), dtype=np.complex64)
@@ -236,6 +244,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     return fim
 
 
+# TODO: Implement some beam-steering thing
 def beam_form_ska(az_point, alt_point, lamb, D, output):
     """Function for creating SKA beam
 
@@ -263,7 +272,50 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
 
     # NOTE: I don't know what this variable is
     N_ortho = 1024
-    pass
+
+    # NOTE: Unlike the MWA beam, we can approximate the SKA beam with a airy disk function
+    lmax = 1.0
+    l = (np.arange(N_ortho) - N_ortho / 2.0) / (N_ortho / 2.0) * lmax
+    m = l
+
+    l_arr, m_arr = np.meshgrid(l, m)
+
+    # Max intensity at centre
+    I0 = 1
+    # Radius of aperture
+    a = D
+
+    # Will need to convert coordinates (l,m) into some theta from the centre of the beam
+    beam = np.zeros((N_ortho, N_ortho))
+    k = 2 * np.pi / lamb
+
+    R = np.sqrt(l_arr**2 + m_arr**2)
+    x = k * a * R / 2
+    beam = (2 * jv(1, x) / x) ** 2
+    beam[R == 0] = 1
+
+    # Create mask, anything outside the fov set to 0
+    fov = lamb / D
+
+    l_fov = np.sin(fov / 2.0)
+    mask = np.zeros((N_ortho, N_ortho), dtype="float")
+    for i in range(N_ortho):
+        for j in range(N_ortho):
+            if np.sqrt(l[i] ** 2 + m[j] ** 2) <= l_fov:
+                mask[i, j] = 1.0
+
+    beam *= mask
+
+    # save beam
+    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
+    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    ax.set_title("Airy Disk")
+    ax.set_xlabel("l")
+    ax.set_ylabel("m")
+    plt.savefig(output + "/" + "full_beam.png", bbox_inches="tight")
+
+    return l_arr, m_arr, beam
 
 
 def beam_form_mwa(az_point, alt_point, lamb, D, output):
@@ -281,6 +333,13 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
         length of tile
     output: string
         output path
+
+    Returns
+    -------
+    l_arr: array
+        array of l values
+    m_arr: array
+        array of m values
     """
 
     deg_to_pi = np.pi / 180.0
@@ -554,7 +613,7 @@ def main():
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
     t1 = time.time()
-    # NOTE: Should this be number of unique baselines?
+    # NOTE: Should this be number of unique baseli
     # Or total number of baselines including redundant ones
     # which would surmount to a large number
     source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, lamb, D, output)
@@ -570,7 +629,7 @@ def main():
     if telescope == "mwa":
         l_arr, m_arr, beam = beam_form_mwa(0, 90, lamb, D, output)
     elif telescope == "ska":
-        pass
+        l_arr, m_arr, beam = beam_form_ska(0, 90, lamb, D, output)
 
     print_with_time("ATTENUATING WITH BEAM")
     sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr, output)
