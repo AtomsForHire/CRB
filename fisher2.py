@@ -63,7 +63,12 @@ def get_config(filename):
         else:
             sys.exit("Please include output in config file")
 
-    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits, output
+        if "telescope" in temp.keys():
+            telescope = temp["telescope"]
+        else:
+            sys.exit("Please include telescope in config file")
+
+    return ra, dec, T_sys, lamb, D, bandwidth, srclist, metafits, output, telescope
 
 
 def print_with_time(string):
@@ -231,7 +236,37 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
     return fim
 
 
-def beam_form(az_point, alt_point, lamb, D, output):
+def beam_form_ska(az_point, alt_point, lamb, D, output):
+    """Function for creating SKA beam
+
+    Parameters
+    ----------
+    az_point: float
+        azumith angle of the telescope's pointing (deg)
+    alt_point: float
+        altitude angle of the telescope's pointing (deg)
+    lamb: float
+        wavelength
+    D: float
+        length of tile
+    output: string
+        output path
+    """
+
+    deg_to_pi = np.pi / 180.0
+    az_point = az_point * deg_to_pi
+    alt_point = alt_point * deg_to_pi
+
+    # Convert alt and az to l and m
+    l_point = np.sin(np.pi / 2.0 - alt_point) * np.sin(az_point)
+    m_point = np.sin(np.pi / 2.0 - alt_point) * np.cos(az_point)
+
+    # NOTE: I don't know what this variable is
+    N_ortho = 1024
+    pass
+
+
+def beam_form_mwa(az_point, alt_point, lamb, D, output):
     """Function for creating MWA beam
 
     Parameters
@@ -244,6 +279,8 @@ def beam_form(az_point, alt_point, lamb, D, output):
         wavelength
     D: float
         length of tile
+    output: string
+        output path
     """
 
     deg_to_pi = np.pi / 180.0
@@ -487,9 +524,18 @@ def main():
         sys.exit("Please provide name of the config yaml file")
 
     config = sys.argv[1]
-    ra_ph, dec_ph, T_sys, lamb, D, bandwidth, srclist_dir, metafits_dir, output = (
-        get_config(config)
-    )
+    (
+        ra_ph,
+        dec_ph,
+        T_sys,
+        lamb,
+        D,
+        bandwidth,
+        srclist_dir,
+        metafits_dir,
+        output,
+        telescope,
+    ) = get_config(config)
 
     Path(output).mkdir(parents=True, exist_ok=True)
 
@@ -521,7 +567,10 @@ def main():
     print(sorted_source_list[-10:])
 
     print_with_time("CALCULATING BEAM")
-    l_arr, m_arr, beam = beam_form(0, 90, lamb, D, output)
+    if telescope == "mwa":
+        l_arr, m_arr, beam = beam_form_mwa(0, 90, lamb, D, output)
+    elif telescope == "ska":
+        pass
 
     print_with_time("ATTENUATING WITH BEAM")
     sorted_source_list = attenuate(sorted_source_list, beam, l_arr, m_arr, output)
