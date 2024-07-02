@@ -1,4 +1,5 @@
 import datetime
+import os
 import time
 
 import matplotlib.pyplot as plt
@@ -9,10 +10,31 @@ from numba import jit, prange
 from scipy.linalg import ishermitian
 from scipy.special import jv
 
+from misc import print_with_time
+
+
+def get_obs_vec(directory):
+    """
+    Get list of observation ids
+    Input:
+        - directory, string of path to directory containing metafits files
+    Output:
+        - order, ordered list of observation ids
+    """
+    order = list()
+    for file in os.listdir(directory):
+        if os.path.isfile(directory + file) and file.endswith(".metafits"):
+            obsid = file.split(".")[0]
+            order.append(obsid)
+
+    order = sorted(order)
+
+    return order
+
 
 # @jit(nopython=True, cache=True, parallel=True)
 @jit(nopython=True, cache=True)
-def fim_loop(source_list, baseline_lengths, num_ant, sigma):
+def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
     """
     Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
@@ -26,6 +48,10 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
         i and j in both x and y coords [i, j, 0 or 1]
     num_ant
         number of antennas
+    lamb
+        observing wavelength
+    sigma
+        value from radiometer equation
 
     Returns
     -------
@@ -37,7 +63,9 @@ def fim_loop(source_list, baseline_lengths, num_ant, sigma):
 
     num_sources = len(source_list)
 
-    baseline_lengths = baseline_lengths / 2.0
+    # Make baselines in wavelengths
+    # baseline_lengths = baseline_lengths / 2.0
+    baselines = baseline_lengths / 2.0
     for a in range(0, num_ant):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
@@ -296,11 +324,25 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
     return l_arr, m_arr, stokes_I
 
 
-def calculate_fim(source_list, metafits_dir, sigma, output):
+def calculate_fim(source_list, metafits_dir, lamb, sigma, output):
     """
-    Input:
-        - source_list, contains l, m and intensity values of sources
-        - metafits_dir, string to directory containing <obsid>.metafits files
+    Parametres
+    ----------
+    source_list
+        contains l, m and intensity values of sources
+    metafits_dir
+        string to directory containing <obsid>.metafits files
+    lamb: float
+        observing wavelength
+    sigma: float
+        value from radiometer equation
+    output: string
+        place to save output
+
+    Returns
+    -------
+    result: float
+        mean value of the diagonal of the square-rooted CRB matrix
     """
 
     obsids = get_obs_vec(metafits_dir)
@@ -318,7 +360,7 @@ def calculate_fim(source_list, metafits_dir, sigma, output):
                 baseline_lengths[i, j, 1] = i_y - j_y
 
         t1 = time.time()
-        fim_cos = fim_loop(source_list, baseline_lengths, temp.Nants, sigma)
+        fim_cos = fim_loop(source_list, baseline_lengths, temp.Nants, lamb, sigma)
         t2 = time.time()
 
         time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -385,15 +427,6 @@ def attenuate(source_list, beam, l_arr, m_arr, output):
 
     for i in range(0, len(source_list)):
         l_ind, m_ind = find_lm_index(source_list[i, 0], source_list[i, 1], l_vec, m_vec)
-        # print(
-        #     source_list[i, 0],
-        #     source_list[i, 1],
-        #     l_vec[l_ind],
-        #     m_vec[m_ind],
-        #     l_ind,
-        #     m_ind,
-        #     beam[l_ind, m_ind],
-        # )
         source_list[i, 2] *= abs(beam[l_ind, m_ind])
 
     fig, ax = plt.subplots(1, 1, figsize=(14, 12))

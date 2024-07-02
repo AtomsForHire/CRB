@@ -1,5 +1,3 @@
-import datetime
-import os
 import sys
 import time
 from pathlib import Path
@@ -10,6 +8,7 @@ import yaml
 from yaml import CLoader as Loader
 
 import CRB
+from misc import print_with_time
 
 
 def get_config(filename):
@@ -84,30 +83,6 @@ def get_config(filename):
         telescope,
         int_time,
     )
-
-
-def print_with_time(string):
-    time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{time_str}] " + string)
-
-
-def get_obs_vec(directory):
-    """
-    Get list of observation ids
-    Input:
-        - directory, string of path to directory containing metafits files
-    Output:
-        - order, ordered list of observation ids
-    """
-    order = list()
-    for file in os.listdir(directory):
-        if os.path.isfile(directory + file) and file.endswith(".metafits"):
-            obsid = file.split(".")[0]
-            order.append(obsid)
-
-    order = sorted(order)
-
-    return order
 
 
 def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
@@ -196,6 +171,10 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
     return np.array(source_list)
 
 
+# Some notes about this program
+# Initially sources are chosen by looking at sources in circle with diameter of the FOV
+# centred around the phase centre.
+# Assuming the phase centre is at zenith
 def main():
 
     if len(sys.argv) < 2:
@@ -228,7 +207,7 @@ def main():
     print_with_time(f"CALCULATED CUT OFF FOR SOURCES: {cut_off}")
 
     # Get observations
-    get_obs_vec(metafits_dir)
+    # get_obs_vec(metafits_dir)
 
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
@@ -257,7 +236,7 @@ def main():
 
     # Calculate FIM
     print_with_time("CALCULATING THE FIM")
-    mean_CRB = CRB.calculate_fim(sorted_source_list, metafits_dir, sigma, output)
+    mean_CRB = CRB.calculate_fim(sorted_source_list, metafits_dir, lamb, sigma, output)
 
     brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV
