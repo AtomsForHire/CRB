@@ -8,6 +8,7 @@ import yaml
 from yaml import CLoader as Loader
 
 import CRB
+import propagate
 from misc import print_with_time
 
 
@@ -176,6 +177,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
 # centred around the phase centre.
 # Assuming the phase centre is at zenith
 def main():
+    np.set_printoptions(linewidth=np.inf)
 
     if len(sys.argv) < 2:
         sys.exit("Please provide name of the config yaml file")
@@ -236,7 +238,15 @@ def main():
 
     # Calculate FIM
     print_with_time("CALCULATING THE FIM")
-    mean_CRB = CRB.calculate_fim(sorted_source_list, metafits_dir, lamb, sigma, output)
+    uncertainties, baseline_lengths = CRB.calculate_fim(
+        sorted_source_list, metafits_dir, lamb, sigma, output, telescope
+    )
+    mean_CRB = np.mean(uncertainties)
+
+    # Propagate errors into visibilities
+    vis_uncertainties = propagate.propagate(
+        baseline_lengths, sorted_source_list, uncertainties, lamb
+    )
 
     brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV
@@ -247,6 +257,11 @@ def main():
         f.write(
             f"{ra_ph:15f} {dec_ph:15f} {mean_CRB:15.5e} {len(source_list):15d} {brightest:15.5f}\n"
         )
+
+    # Save visibility uncertainties
+    with open("vis_unc_" + telescope + ".txt", "w") as f:
+        for row in vis_uncertainties:
+            f.write(str(row) + "\n")
 
 
 if __name__ == "__main__":

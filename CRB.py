@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import os
 import time
 
@@ -78,9 +79,9 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
                             * np.pi
                             * 1j
                             * (
-                                baseline_lengths[a, b, 0]
+                                baselines[a, b, 0]
                                 * (source_list[i, 0] - source_list[j, 0])
-                                + baseline_lengths[a, b, 1]
+                                + baselines[a, b, 1]
                                 * (source_list[i, 1] - source_list[j, 1])
                             )
                         )
@@ -324,7 +325,20 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
     return l_arr, m_arr, stokes_I
 
 
-def calculate_fim(source_list, metafits_dir, lamb, sigma, output):
+def create_MWA_baselines(metafits_dir, obs):
+    temp = read_metafits.Metafits(metafits_dir + str(obs) + ".metafits")
+    baseline_lengths = np.zeros((temp.Nants, temp.Nants, 2))
+    for i in range(0, temp.Nants):
+        i_x, i_y, _ = temp.antenna_position_for(i)
+        for j in range(0, temp.Nants):
+            j_x, j_y, _ = temp.antenna_position_for(j)
+            baseline_lengths[i, j, 0] = i_x - j_x
+            baseline_lengths[i, j, 1] = i_y - j_y
+
+    return baseline_lengths
+
+
+def calculate_fim(source_list, metafits_dir, lamb, sigma, output, telescope):
     """
     Parametres
     ----------
@@ -348,22 +362,21 @@ def calculate_fim(source_list, metafits_dir, lamb, sigma, output):
     obsids = get_obs_vec(metafits_dir)
 
     for obs in obsids[0:1]:
-        temp = read_metafits.Metafits(metafits_dir + str(obs) + ".metafits")
 
         # Calculate distances between each antenna
-        baseline_lengths = np.zeros((temp.Nants, temp.Nants, 2))
-        for i in range(0, temp.Nants):
-            i_x, i_y, _ = temp.antenna_position_for(i)
-            for j in range(0, temp.Nants):
-                j_x, j_y, _ = temp.antenna_position_for(j)
-                baseline_lengths[i, j, 0] = i_x - j_x
-                baseline_lengths[i, j, 1] = i_y - j_y
+
+        if telescope == "mwa":
+            baseline_lengths = create_MWA_baselines(metafits_dir, obs)
+            num_ant = 128
+        elif telescope == "ska":
+            # TODO:
+            baseline_lengths = create_MWA_baselines(metafits_dir, obs)
+            num_ant = 128
 
         t1 = time.time()
-        fim_cos = fim_loop(source_list, baseline_lengths, temp.Nants, lamb, sigma)
+        fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma)
         t2 = time.time()
 
-        time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
         print_with_time(f"IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}")
 
@@ -407,7 +420,7 @@ def calculate_fim(source_list, metafits_dir, lamb, sigma, output):
         plt.plot(range(0, 128), diag)
         plt.savefig(output + "/" + "diag.pdf", bbox_inches="tight")
 
-        return np.mean(diag)
+        return diag, baseline_lengths
 
 
 def find_lm_index(l, m, l_vec, m_vec):
