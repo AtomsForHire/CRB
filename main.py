@@ -8,6 +8,7 @@ import yaml
 from yaml import CLoader as Loader
 
 import CRB
+import power
 import propagate
 from misc import print_with_time
 
@@ -87,20 +88,28 @@ def get_config(filename):
 
 
 def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
-    """
-    Returns a list of sources from a sky model
+    """Returns a list of sources from a sky model
 
-    Input:
-        - filename, filename of yaml sky model file
-        - ra_ph, ra of phase centre
-        - dec_ph, dec of phase centre
-        - lamb, wavelength
-        - D, distance between antenna
-    Output:
-        - source_list, number of rows is number of sources
-                       column 0 are l coords
-                       column 1 are m coords
-                       column 2 are source brightness
+    Parameters
+    ----------
+    - filename: `string`
+        filename of yaml sky model file
+    - ra_ph: `float`
+        ra of phase centre
+    - dec_ph: `float`
+        dec of phase centre
+    - lamb: `float`
+        wavelength
+    - D: `float`
+        distance between antenna
+
+    Returns
+    -------
+    - source_list: `np.array`
+        number of rows is number of sources
+        column 0 are l coords
+        column 1 are m coords
+        column 2 are source brightness
     """
 
     deg_to_rad = np.pi / 180.0
@@ -214,7 +223,7 @@ def main():
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
     t1 = time.time()
-    # NOTE: Should this be number of unique baseli
+    # NOTE: Should this be number of unique baselines
     # Or total number of baselines including redundant ones
     # which would surmount to a large number
     source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, lamb, D, output)
@@ -241,12 +250,22 @@ def main():
     uncertainties, baseline_lengths = CRB.calculate_fim(
         sorted_source_list, metafits_dir, lamb, sigma, output, telescope
     )
+
     mean_CRB = np.mean(uncertainties)
 
     # Propagate errors into visibilities
+    print_with_time("PROPAGATING INTO VISIBILITIES")
     vis_uncertainties = propagate.propagate(
         baseline_lengths, sorted_source_list, uncertainties, lamb
     )
+
+    print_with_time("BINNING ERRORS")
+    vis_mat, u_arr, v_arr = power.uv_bin(
+        lamb, vis_uncertainties, baseline_lengths, output
+    )
+
+    print_with_time("POWER SPECTRUM")
+    power.power_bin(vis_mat, u_arr, v_arr, output)
 
     brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV

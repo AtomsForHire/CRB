@@ -15,12 +15,17 @@ from misc import print_with_time
 
 
 def get_obs_vec(directory):
-    """
-    Get list of observation ids
-    Input:
-        - directory, string of path to directory containing metafits files
-    Output:
-        - order, ordered list of observation ids
+    """Get list of observation ids
+
+    Parameters
+    ----------
+    directory: `string`
+        string of path to directory containing metafits files
+
+    Returns
+    -------
+    order: `list`
+        ordered list of observation ids
     """
     order = list()
     for file in os.listdir(directory):
@@ -36,27 +41,26 @@ def get_obs_vec(directory):
 # @jit(nopython=True, cache=True, parallel=True)
 @jit(nopython=True, cache=True)
 def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
-    """
-    Function for executing the loop required to calculate the FIM
+    """Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
 
-    Paramters
-    ---------
-    source_list
+    Parameters
+    ----------
+    - source_list: `np.array`
         2D matrix of sources storing [l, m, intensity]
-    baseline_lengths
+    - baseline_lengths: `np.array`
         2D matrix containing lengths between antenna
         i and j in both x and y coords [i, j, 0 or 1]
-    num_ant
+    - num_ant: `int`
         number of antennas
-    lamb
+    - lamb: `float`
         observing wavelength
-    sigma
+    - sigma: `float`
         value from radiometer equation
 
     Returns
     -------
-    fim_cos
+    fim_cos: `np.array`
         fisher information matrix
     """
 
@@ -107,16 +111,25 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
 
     Parameters
     ----------
-    az_point: float
+    - az_point: `float`
         azumith angle of the telescope's pointing (deg)
-    alt_point: float
+    - alt_point: `float`
         altitude angle of the telescope's pointing (deg)
-    lamb: float
+    - lamb: `float`
         wavelength
-    D: float
+    - D: `float`
         length of tile
-    output: string
+    - output: `string`
         output path
+
+    Returns
+    -------
+    - l_arr: `np.array`
+        array of l values
+    - m_arr: `np.array`
+        array of m values
+    - beam: `np.array`
+        array of beam
     """
 
     deg_to_pi = np.pi / 180.0
@@ -189,23 +202,25 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
 
     Parameters
     ----------
-    az_point: float
+    - az_point: `float`
         azumith angle of the telescope's pointing (deg)
-    alt_point: float
+    - alt_point: `float`
         altitude angle of the telescope's pointing (deg)
-    lamb: float
+    - lamb: `float`
         wavelength
-    D: float
+    - D: `float`
         length of tile
-    output: string
+    - output: `string`
         output path
 
     Returns
     -------
-    l_arr: array
+    - l_arr: `np.array`
         array of l values
-    m_arr: array
+    - m_arr: `np.array`
         array of m values
+    - beam: `np.array`
+        array of beam
     """
 
     deg_to_pi = np.pi / 180.0
@@ -326,6 +341,20 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
 
 
 def create_MWA_baselines(metafits_dir, obs):
+    """Function for extracting MWA baselines from MWA metafits file
+
+    Parameters
+    ----------
+    metafits_dir: `string`
+        path to MWA metafits directory
+    obs: `int`
+        observation id
+
+    Returns
+    -------
+    baseline_lengths: `np.array`
+        matrix of baselines between antennas i and j: [i, j, (x,y)]
+    """
     temp = read_metafits.Metafits(metafits_dir + str(obs) + ".metafits")
     baseline_lengths = np.zeros((temp.Nants, temp.Nants, 2))
     for i in range(0, temp.Nants):
@@ -339,23 +368,24 @@ def create_MWA_baselines(metafits_dir, obs):
 
 
 def calculate_fim(source_list, metafits_dir, lamb, sigma, output, telescope):
-    """
-    Parametres
+    """Wrapper function for calculating the FIM
+
+    Parameters
     ----------
-    source_list
+    - source_list: `np.array`
         contains l, m and intensity values of sources
-    metafits_dir
+    - metafits_dir: `string`
         string to directory containing <obsid>.metafits files
-    lamb: float
+    - lamb: `float`
         observing wavelength
-    sigma: float
+    - sigma: `float`
         value from radiometer equation
-    output: string
+    - output: `string`
         place to save output
 
     Returns
     -------
-    result: float
+    - result: `float`
         mean value of the diagonal of the square-rooted CRB matrix
     """
 
@@ -431,6 +461,26 @@ def find_lm_index(l, m, l_vec, m_vec):
 
 
 def attenuate(source_list, beam, l_arr, m_arr, output):
+    """Function for applying beam attenuation onto sources within FOV
+
+    Parameters
+    ----------
+    source_list: `np.array`
+        array of sources containing [l, m, B] values
+    beam: `np.array`
+        array of beam sensitivity values
+    l_arr: `np.array`
+        array of l values for beam
+    m_arr: `np.array`
+        array of m values for beam
+    output: string
+        path to directory to save stuff
+
+    Returns
+    -------
+    source_list: `np.array`
+        source_list after attenuation
+    """
     # l values are changing left to right in the matrix
     # So grab the first row for comparison
     l_vec = l_arr[0, :]
@@ -460,18 +510,19 @@ def get_rms(T_sys, bandwidth, telescope, int_time):
 
     Parameters
     ----------
-    T_sys: float
+    - T_sys: `float`
         system noise
-    bandwidth: float
+    - bandwidth: `float`
         bandwidth of a measurement
-    telescope: string
+    - telescope: `string`
         mwa or ska
-    int_time: float
+    - int_time: `float`
         integration time
 
     Returns
     -------
-    result of equation
+    result: `float`
+        result of equation
     """
 
     if telescope == "mwa":

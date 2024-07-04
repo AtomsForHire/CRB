@@ -1,11 +1,4 @@
-import datetime
-import os
-import time
-
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy.constants as const
-from mwa_qa import read_metafits
 from numba import jit
 
 from misc import print_with_time
@@ -17,14 +10,19 @@ def partial(u, v, gain, source_list):
 
     Parameters
     ----------
-    u: float
+    - u: `float`
         baseline coord
-    v: float
+    - v: `float`
         baseline coord
-    source_list: array
+    - source_list: `array`
         source coordinates and intensity (l, m, B)
-    gain: float
+    - gain: `float`
         the gain of the antenna
+
+    Returns
+    -------
+    - result: `complex`
+        result of the partial derivative expression
     """
 
     result = 0
@@ -41,14 +39,19 @@ def partial_star(u, v, source_list, gain):
 
     Parameters
     ----------
-    u: float
+    - u: `float`
         baseline coord
-    v: float
+    - v: `float`
         baseline coord
-    source_list: array
+    - source_list: `array`
         source coordinates and intensity (l, m, B)
-    gain: float
+    - gain: `float`
         the gain of the antenna
+
+    Returns
+    -------
+    - result: `complex`
+        result of the partial derivative expression
     """
     result = 0
     for i in range(0, len(source_list)):
@@ -65,12 +68,17 @@ def propagate(baseline_lengths, source_list, uncertainties, lamb):
 
     Parameters
     ----------
-    baselines: array
+    - baselines: `array`
         array of baselines
-    uncertainties: array
+    - uncertainties: `array`
         uncertainties in gains for each antenna
-    source_list: array
+    - source_list: `array`
         source coordinates and intensity (l, m, B)
+
+    Returns
+    -------
+    - vis_uncertainties: `np.array`
+        matrix of uncertainties for baselines form by antennas i and j
     """
 
     # Propagate for a single visibility, i.e. a single baseline
