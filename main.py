@@ -4,12 +4,14 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.constants as const
 import yaml
 from yaml import CLoader as Loader
 
 import CRB
 import power
 import propagate
+import sources
 from misc import print_with_time
 
 
@@ -32,10 +34,15 @@ def get_config(filename):
         else:
             sys.exit("Please include T_sys in config file")
 
-        if "lambda" in temp.keys():
-            lamb = temp["lambda"]
+        if "start_freq" in temp.keys():
+            start_freq = float(temp["start_freq"])
         else:
-            sys.exit("Please include lambda in config file")
+            sys.exit("Please include start_freq in config file")
+
+        if "end_freq" in temp.keys():
+            end_freq = float(temp["end_freq"])
+        else:
+            sys.exit("Please include end_freq in config file")
 
         if "D" in temp.keys():
             D = temp["D"]
@@ -81,7 +88,8 @@ def get_config(filename):
         ra,
         dec,
         T_sys,
-        lamb,
+        start_freq,
+        end_freq,
         D,
         channel_width,
         bandwidth,
@@ -91,100 +99,6 @@ def get_config(filename):
         telescope,
         int_time,
     )
-
-
-def get_source_list(filename, ra_ph, dec_ph, cut_off, lamb, D, output):
-    """Returns a list of sources from a sky model
-
-    Parameters
-    ----------
-    - filename: `string`
-        filename of yaml sky model file
-    - ra_ph: `float`
-        ra of phase centre
-    - dec_ph: `float`
-        dec of phase centre
-    - lamb: `float`
-        wavelength
-    - D: `float`
-        distance between antenna
-
-    Returns
-    -------
-    - source_list: `np.array`
-        number of rows is number of sources
-        column 0 are l coords
-        column 1 are m coords
-        column 2 are source brightness
-    """
-
-    deg_to_rad = np.pi / 180.0
-    fov = lamb / D
-    with open(filename) as f:
-        temp = yaml.load(f, Loader=Loader)
-
-        num_sources = 0
-        for key in temp:
-            num_sources += len(temp[key])
-
-        # store l, m, intensity values in this array
-        # source_list = np.zeros((num_sources, 3))
-        source_list = list()
-
-        for key in temp:
-            num_sources_in_key = len(temp[key])
-            for i in range(0, num_sources_in_key):
-                data = temp[key][i]
-                ra = data["ra"]
-                dec = data["dec"]
-
-                dra = ra - ra_ph
-                ddec = dec - dec_ph
-
-                dist_from_ph = np.sqrt(
-                    (dra * deg_to_rad) ** 2 + (ddec * deg_to_rad) ** 2
-                )
-
-                # Check if sources sit within FOV
-                # if dist_from_ph > fov / 2.0:
-                #     continue
-
-                # Convert ra dec in deg to l, m direction cosines
-                l = np.cos(dec) * np.sin(dra)
-                m = np.sin(dec) * np.cos(dec_ph) - np.cos(dec) * np.sin(
-                    dec_ph
-                ) * np.cos(dra)
-
-                if np.sqrt(l**2 + m**2) > np.sin(fov / 2.0):
-                    continue
-
-                if "power_law" in data["flux_type"]:
-                    source_intensity = data["flux_type"]["power_law"]["fd"]["i"]
-
-                if "curved_power_law" in data["flux_type"]:
-                    source_intensity = data["flux_type"]["curved_power_law"]["fd"]["i"]
-
-                if source_intensity < cut_off:
-                    continue
-
-                temp_array = [l, m, source_intensity]
-                source_list.append(temp_array)
-
-    if not source_list:
-        print_with_time(
-            f"NO SOURCES FOUND IN THIS FIELD WITH NOISE CALCULATED TO BE {cut_off}"
-        )
-        exit()
-
-    circle1 = plt.Circle((0, 0), np.sin(fov / 2.0), color="r", alpha=0.2)
-    temp = np.array(source_list)
-    plt.scatter(temp[:, 0], temp[:, 1])
-    ax = plt.gca()
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
-    ax.add_patch(circle1)
-    plt.savefig(output + "/" + "sources.png")
-    return np.array(source_list)
 
 
 # Some notes about this program
@@ -202,12 +116,13 @@ def main():
         ra_ph,
         dec_ph,
         T_sys,
-        lamb,
+        start_freq,
+        end_freq,
         D,
         channel_width,
         bandwidth,
         srclist_dir,
-        metafits_dir,
+        metafits_path,
         output,
         telescope,
         int_time,
@@ -216,7 +131,7 @@ def main():
     Path(output).mkdir(parents=True, exist_ok=True)
 
     print_with_time(
-        f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
+        f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} channel_width={channel_width} bandwidth={bandwidth} D={D}"
     )
 
     sigma = CRB.get_rms(T_sys, channel_width, telescope, int_time)
@@ -233,48 +148,73 @@ def main():
     # NOTE: Should this be number of unique baselines
     # Or total number of baselines including redundant ones
     # which would surmount to a large number
-    source_list = get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, lamb, D, output)
+    source_list = sources.get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, output)
     t2 = time.time()
 
     print_with_time(f"READING IN TOOK: {t2 - t1}s")
     print_with_time(f"NUMBER OF SOURCES: {len(source_list)}")
-    print_with_time(f"TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS")
-    sorted_source_list = source_list[source_list[:, 2].argsort()]
-    print(sorted_source_list[-10:])
+    # print_with_time(f"TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS")
+    # sorted_source_list = source_list[source_list[:, 2].argsort()]
+    # print(sorted_source_list[-10:])
 
-    print_with_time("CALCULATING BEAM")
+    print_with_time(f"CREATING BASELINES")
     if telescope == "mwa":
-        l_arr, m_arr, beam = CRB.beam_form_mwa(0, 90, lamb, D, output)
+        baseline_lengths = CRB.create_MWA_baselines(metafits_path)
+        num_ant = 128
     elif telescope == "ska":
-        l_arr, m_arr, beam = CRB.beam_form_ska(0, 90, lamb, D, output)
+        # TODO:
+        baseline_lengths = CRB.create_MWA_baselines(metafits_path)
+        num_ant = 128
 
-    print_with_time("ATTENUATING WITH BEAM")
-    sorted_source_list = CRB.attenuate(sorted_source_list, beam, l_arr, m_arr, output)
-    print(sorted_source_list[-10:])
+    freq_array = np.arange(start_freq, end_freq, channel_width)
 
-    # Calculate FIM
-    print_with_time("CALCULATING THE FIM")
-    uncertainties, baseline_lengths = CRB.calculate_fim(
-        sorted_source_list, metafits_dir, lamb, sigma, output, telescope
-    )
+    vis_uncertainties_store = np.zeros((len(freq_array), 128, 128))
+    # Loop over frequencies and calculate the visibility uncertainties for eqch frequency
+    for i in range(0, 2):
+        freq = freq_array[i]
+        lamb = const.c / freq
+        print_with_time(f"FREQUENCY: {freq}")
 
-    mean_CRB = np.mean(uncertainties)
+        fov_sources = sources.fov_cut(source_list, lamb, D)
+        sorted_fov = fov_sources[fov_sources[:, 2].argsort()]
+        print_with_time(f"NUMBER OF SOURCES: {len(fov_sources)}")
 
-    # Propagate errors into visibilities
-    print_with_time("PROPAGATING INTO VISIBILITIES")
-    vis_uncertainties = propagate.propagate(
-        baseline_lengths, sorted_source_list, uncertainties, lamb
-    )
+        print_with_time("CALCULATING BEAM")
+        if telescope == "mwa":
+            l_arr, m_arr, beam = CRB.beam_form_mwa(0, 90, lamb, D, output)
+        elif telescope == "ska":
+            l_arr, m_arr, beam = CRB.beam_form_ska(0, 90, lamb, D, output)
 
-    print_with_time("BINNING ERRORS")
-    vis_mat, u_arr, v_arr = power.uv_bin(
-        lamb, vis_uncertainties, baseline_lengths, output
-    )
+        print_with_time("ATTENUATING WITH BEAM")
+        sorted_source_list = CRB.attenuate(sorted_fov, beam, l_arr, m_arr, output)
 
-    print_with_time("POWER SPECTRUM")
-    power.power_bin(vis_mat, u_arr, v_arr, output)
+        # Calculate FIM
+        print_with_time("CALCULATING THE FIM")
+        uncertainties = CRB.calculate_fim(
+            sorted_source_list, baseline_lengths, num_ant, lamb, sigma, output
+        )
 
-    brightest = np.max(sorted_source_list)
+        mean_CRB = np.mean(uncertainties)
+
+        # Propagate errors into visibilities
+        print_with_time("PROPAGATING INTO VISIBILITIES")
+        vis_uncertainties = propagate.propagate(
+            baseline_lengths, sorted_source_list, uncertainties, lamb
+        )
+
+        vis_uncertainties_store[i, :, :] = uncertainties
+
+        print(vis_uncertainties.shape)
+
+        # print_with_time("BINNING ERRORS")
+        # vis_mat, u_arr, v_arr = power.uv_bin(
+        #     lamb, vis_uncertainties, baseline_lengths, output
+        # )
+
+        # print_with_time("POWER SPECTRUM")
+        # power.power_bin(vis_mat, u_arr, v_arr, output)
+
+    # brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV
     with open("output_" + telescope + ".txt", "w") as f:
         f.write(

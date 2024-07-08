@@ -340,13 +340,13 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
     return l_arr, m_arr, stokes_I
 
 
-def create_MWA_baselines(metafits_dir, obs):
+def create_MWA_baselines(metafits_path):
     """Function for extracting MWA baselines from MWA metafits file
 
     Parameters
     ----------
     metafits_dir: `string`
-        path to MWA metafits directory
+        path to MWA metafits file
     obs: `int`
         observation id
 
@@ -355,7 +355,7 @@ def create_MWA_baselines(metafits_dir, obs):
     baseline_lengths: `np.array`
         matrix of baselines between antennas i and j: [i, j, (x,y)]
     """
-    temp = read_metafits.Metafits(metafits_dir + str(obs) + ".metafits")
+    temp = read_metafits.Metafits(metafits_path)
     baseline_lengths = np.zeros((temp.Nants, temp.Nants, 2))
     for i in range(0, temp.Nants):
         i_x, i_y, _ = temp.antenna_position_for(i)
@@ -367,15 +367,17 @@ def create_MWA_baselines(metafits_dir, obs):
     return baseline_lengths
 
 
-def calculate_fim(source_list, metafits_dir, lamb, sigma, output, telescope):
+def calculate_fim(source_list, baseline_lengths, num_ant, lamb, sigma, output):
     """Wrapper function for calculating the FIM
 
     Parameters
     ----------
     - source_list: `np.array`
         contains l, m and intensity values of sources
-    - metafits_dir: `string`
-        string to directory containing <obsid>.metafits files
+    - baseline_lengths: `np.array`
+        2D array of baselines
+    - num_ant: `int`
+        number of antennas
     - lamb: `float`
         observing wavelength
     - sigma: `float`
@@ -389,68 +391,54 @@ def calculate_fim(source_list, metafits_dir, lamb, sigma, output, telescope):
         mean value of the diagonal of the square-rooted CRB matrix
     """
 
-    obsids = get_obs_vec(metafits_dir)
+    t1 = time.time()
+    fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma)
+    t2 = time.time()
 
-    for obs in obsids[0:1]:
+    print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
+    print_with_time(f"IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}")
 
-        # Calculate distances between each antenna
+    with open(output + "/" + "matrix_complex.txt", "w") as f:
+        for row in fim_cos:
+            f.write(" ".join([str(a) for a in row]) + "\n")
 
-        if telescope == "mwa":
-            baseline_lengths = create_MWA_baselines(metafits_dir, obs)
-            num_ant = 128
-        elif telescope == "ska":
-            # TODO:
-            baseline_lengths = create_MWA_baselines(metafits_dir, obs)
-            num_ant = 128
+    with open(output + "/" + "matrix_abs.txt", "w") as f:
+        for row in fim_cos:
+            f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
-        t1 = time.time()
-        fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma)
-        t2 = time.time()
+    # Calculate the CRB, which is the inverse of the FIM
+    crb = np.sqrt(np.linalg.inv(fim_cos))
 
-        print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
-        print_with_time(f"IS THE FIM HERMITIAN?:  {ishermitian(fim_cos)}")
+    with open(output + "/" + "crb_abs.txt", "w") as f:
+        for row in crb:
+            f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
-        with open(output + "/" + "matrix_complex.txt", "w") as f:
-            for row in fim_cos:
-                f.write(" ".join([str(a) for a in row]) + "\n")
+    with open(output + "/" + "crb_complex.txt", "w") as f:
+        for row in crb:
+            f.write(" ".join([str(a) for a in row]) + "\n")
 
-        with open(output + "/" + "matrix_abs.txt", "w") as f:
-            for row in fim_cos:
-                f.write(" ".join([str(abs(a)) for a in row]) + "\n")
+    diag = np.diagonal(abs(crb))
 
-        # Calculate the CRB, which is the inverse of the FIM
-        crb = np.sqrt(np.linalg.inv(fim_cos))
+    with open(output + "/" + "diag.txt", "w") as f:
+        for row in diag:
+            f.write(str(row) + "\n")
 
-        with open(output + "/" + "crb_abs.txt", "w") as f:
-            for row in crb:
-                f.write(" ".join([str(abs(a)) for a in row]) + "\n")
+        # plt.matshow(abs(fim_cos))
+        # plt.colorbar()
+        # plt.title(obs + " FIM")
+        # plt.savefig(output + "/" + "fim_cos.pdf", bbox_inches="tight")
+        # plt.clf()
 
-        with open(output + "/" + "crb_complex.txt", "w") as f:
-            for row in crb:
-                f.write(" ".join([str(a) for a in row]) + "\n")
+        # plt.matshow(abs(crb))
+        # plt.colorbar()
+        # plt.title(obs + " CRB")
+        # plt.savefig(output + "/" + "crb.pdf", bbox_inches="tight")
+        # plt.clf()
 
-        diag = np.diagonal(abs(crb))
+        # plt.plot(range(0, 128), diag)
+        # plt.savefig(output + "/" + "diag.pdf", bbox_inches="tight")
 
-        with open(output + "/" + "diag.txt", "w") as f:
-            for row in diag:
-                f.write(str(row) + "\n")
-
-        plt.matshow(abs(fim_cos))
-        plt.colorbar()
-        plt.title(obs + " FIM")
-        plt.savefig(output + "/" + "fim_cos.pdf", bbox_inches="tight")
-        plt.clf()
-
-        plt.matshow(abs(crb))
-        plt.colorbar()
-        plt.title(obs + " CRB")
-        plt.savefig(output + "/" + "crb.pdf", bbox_inches="tight")
-        plt.clf()
-
-        plt.plot(range(0, 128), diag)
-        plt.savefig(output + "/" + "diag.pdf", bbox_inches="tight")
-
-        return diag, baseline_lengths
+        return diag
 
 
 def find_lm_index(l, m, l_vec, m_vec):

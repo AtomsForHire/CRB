@@ -3,7 +3,8 @@ dec: -13.5
 T_sys: 400
 lambda: 2
 D: 40
-bandwidth: 40e3
+bandwidth: 80e3
+channel_width: 30e6
 srclist: "../convert_Pietro_OSKAR/srclist_pumav3_EoR0LoBES_EoR1pietro_CenA-GP_2023-11-07.yaml"
 metafits: "../SKAEOR15_145_metrics/rerun_1/rerun_1_solutions/"
 output: "./ska"
