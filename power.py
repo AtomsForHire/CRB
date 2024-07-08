@@ -1,3 +1,4 @@
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -71,11 +72,11 @@ def uv_bin(lamb, vis, baseline_lengths, output):
 
     vis_mat[weights != 0] /= weights[weights != 0]
 
-    plt.imshow((np.abs(vis_mat)))
+    plt.imshow((np.abs(vis_mat)), origin="lower")
     plt.xlabel("u")
     plt.ylabel("v")
     plt.title("Visibility errors")
-    plt.savefig(output + "/vis_errors.png", bbox_inches="tight")
+    plt.savefig(output + "/vis_errors_no_arc.png", bbox_inches="tight")
     plt.clf()
 
     return vis_mat, u_arr, v_arr
@@ -102,11 +103,12 @@ def power_bin(vis_mat, u_arr, v_arr, output):
 
     # Create k_perp grid
     cosmo = 1
-    max_k = np.max(u_arr[-1]) * cosmo
+    max_k = np.max(u_arr) * cosmo
     # dk = int(u_arr[1] - u_arr[0])
     dk = 20
     k_perp = np.linspace(0, max_k, dk)
-    pow = np.zeros(len(k_perp))
+    print(len(k_perp), max_k, vis_mat.shape)
+    pow = np.zeros(len(k_perp), dtype=np.complex64)
 
     for i in range(1, len(k_perp)):
         num_in_annuli = 0
@@ -125,3 +127,22 @@ def power_bin(vis_mat, u_arr, v_arr, output):
     plt.xlabel("k_perp")
     plt.ylabel("power")
     plt.savefig(output + "/angular_pow.png", bbox_inches="tight")
+    plt.clf()
+
+    # Create visibility scatter plot again, but with the arcs.
+    for i in range(1, len(k_perp)):
+        plt.gca().add_patch(
+            patches.Circle(
+                (0, 0), k_perp[i], facecolor=None, edgecolor="black", fill=False
+            )
+        )
+
+    plt.imshow(np.abs(vis_mat), origin="lower", extent=(-max_k, max_k, -max_k, max_k))
+    plt.xlim((-max_k, max_k))
+    plt.ylim((-max_k, max_k))
+    plt.xlabel("u")
+    plt.ylabel("v")
+    plt.title("Visibility errors")
+    plt.colorbar()
+    plt.savefig(output + "/vis_errors.png", bbox_inches="tight")
+    plt.clf()
