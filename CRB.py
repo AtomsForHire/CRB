@@ -38,8 +38,8 @@ def get_obs_vec(directory):
     return order
 
 
-# @jit(nopython=True, cache=True, parallel=True)
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
+# @jit(nopython=True, cache=True)
 def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
     """Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
@@ -71,7 +71,7 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
     # Make baselines in wavelengths
     # baseline_lengths = baseline_lengths / 2.0
     baselines = baseline_lengths / 2.0
-    for a in range(0, num_ant):
+    for a in prange(0, num_ant):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
                 for j in range(0, num_sources):

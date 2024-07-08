@@ -123,6 +123,8 @@ def power_bin(vis_mat, u_arr, v_arr, output):
 
         pow[i] /= num_in_annuli
 
+    pow *= np.conjugate(pow)
+
     plt.plot(k_perp, pow)
     plt.xlabel("k_perp")
     plt.ylabel("power")

@@ -52,6 +52,11 @@ def get_config(filename):
         else:
             sys.exit("Please include metafits in config file")
 
+        if "channel_width" in temp.keys():
+            channel_width = float(temp["channel_width"])
+        else:
+            sys.exit("Please include bandwidth in config file")
+
         if "bandwidth" in temp.keys():
             bandwidth = float(temp["bandwidth"])
         else:
@@ -78,6 +83,7 @@ def get_config(filename):
         T_sys,
         lamb,
         D,
+        channel_width,
         bandwidth,
         srclist,
         metafits,
@@ -198,6 +204,7 @@ def main():
         T_sys,
         lamb,
         D,
+        channel_width,
         bandwidth,
         srclist_dir,
         metafits_dir,
@@ -212,7 +219,7 @@ def main():
         f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} lambda={lamb} D={D}"
     )
 
-    sigma = CRB.get_rms(T_sys, bandwidth, telescope, int_time)
+    sigma = CRB.get_rms(T_sys, channel_width, telescope, int_time)
     print_with_time(f"CALCULATED NOISE: {sigma}")
     cut_off = 5 * (sigma / np.sqrt(8256))
     print_with_time(f"CALCULATED CUT OFF FOR SOURCES: {cut_off}")
