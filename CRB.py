@@ -13,33 +13,15 @@ from scipy.special import jv
 
 from misc import print_with_time
 
-
-def get_obs_vec(directory):
-    """Get list of observation ids
-
-    Parameters
-    ----------
-    directory: `string`
-        string of path to directory containing metafits files
-
-    Returns
-    -------
-    order: `list`
-        ordered list of observation ids
-    """
-    order = list()
-    for file in os.listdir(directory):
-        if os.path.isfile(directory + file) and file.endswith(".metafits"):
-            obsid = file.split(".")[0]
-            order.append(obsid)
-
-    order = sorted(order)
-
-    return order
+# BUG: For some reason if I turn off parallel mode in this function
+# it causes an out of memory error (OOM or seg fault) while trying
+# to bin errors later on in propagate.propagate. But if I turn off
+# parallel jit in this function here, and turn off jit all together
+# in propagate.propagate then it works fine.
 
 
-@jit(nopython=True, cache=True, parallel=True)
 # @jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
     """Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
@@ -165,13 +147,13 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
     beam[R == 0] = 1
 
     # save full beam
-    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
-    cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
-    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
-    ax.set_title("Airy Disk")
-    ax.set_xlabel("l")
-    ax.set_ylabel("m")
-    plt.savefig(output + "/" + "full_beam.png", bbox_inches="tight")
+    # fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    # cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
+    # fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    # ax.set_title("Airy Disk")
+    # ax.set_xlabel("l")
+    # ax.set_ylabel("m")
+    # plt.savefig(output + "/" + "full_beam.png", bbox_inches="tight")
 
     # Create mask, anything outside the fov set to 0
     fov = lamb / D
@@ -186,13 +168,13 @@ def beam_form_ska(az_point, alt_point, lamb, D, output):
     beam *= mask
 
     # save masked beam
-    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
-    cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
-    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
-    ax.set_title("Airy Disk")
-    ax.set_xlabel("l")
-    ax.set_ylabel("m")
-    plt.savefig(output + "/" + "full_beam_masked.png", bbox_inches="tight")
+    # fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    # cp = ax.contourf(l_arr, m_arr, beam[:, :], 100)
+    # fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    # ax.set_title("Airy Disk")
+    # ax.set_xlabel("l")
+    # ax.set_ylabel("m")
+    # plt.savefig(output + "/" + "full_beam_masked.png", bbox_inches="tight")
 
     return l_arr, m_arr, beam
 
@@ -256,13 +238,13 @@ def beam_form_mwa(az_point, alt_point, lamb, D, output):
     x_loc -= cent[0]
     y_loc -= cent[1]
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    # fig, ax = plt.subplots(1, 1, figsize=(8, 8))
 
-    cp = ax.plot(x_loc, y_loc, ".", color="grey")
+    # cp = ax.plot(x_loc, y_loc, ".", color="grey")
 
-    ax.set_ylabel("Location Y metres")
-    ax.set_xlabel("Location X metres")
-    plt.savefig(output + "/" + "dipoles.png")
+    # ax.set_ylabel("Location Y metres")
+    # ax.set_xlabel("Location X metres")
+    # plt.savefig(output + "/" + "dipoles.png")
 
     # Create beams
     station_beam_Xtheta = np.zeros((N_ortho, N_ortho), dtype="complex")
@@ -441,13 +423,15 @@ def calculate_fim(source_list, baseline_lengths, num_ant, lamb, sigma, output):
         return diag
 
 
+@jit(nopython=True, cache=True)
 def find_lm_index(l, m, l_vec, m_vec):
-    l_ind = np.argmin(abs(l - l_vec))
-    m_ind = np.argmin(abs(m - m_vec))
+    l_ind = np.argmin(np.abs(l - l_vec))
+    m_ind = np.argmin(np.abs(m - m_vec))
 
     return l_ind, m_ind
 
 
+@jit(nopython=True, cache=True)
 def attenuate(source_list, beam, l_arr, m_arr, output):
     """Function for applying beam attenuation onto sources within FOV
 
@@ -480,14 +464,14 @@ def attenuate(source_list, beam, l_arr, m_arr, output):
         l_ind, m_ind = find_lm_index(source_list[i, 0], source_list[i, 1], l_vec, m_vec)
         source_list[i, 2] *= abs(beam[l_ind, m_ind])
 
-    fig, ax = plt.subplots(1, 1, figsize=(14, 12))
-    cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(beam[:, :]))), 100)
-    fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
-    ax.scatter(source_list[:, 0], source_list[:, 1], s=0.5, alpha=0.5)
-    ax.set_title("Autocorrelation beam")
-    ax.set_xlabel("l")
-    ax.set_ylabel("m")
-    plt.savefig(output + "/" + "masked_beam_with_sources.png", bbox_inches="tight")
+    # fig, ax = plt.subplots(1, 1, figsize=(14, 12))
+    # cp = ax.contourf(l_arr, m_arr, np.transpose(np.log10(abs(beam[:, :]))), 100)
+    # fig.colorbar(cp, ax=ax)  # Add a colorbar to a plot
+    # ax.scatter(source_list[:, 0], source_list[:, 1], s=0.5, alpha=0.5)
+    # ax.set_title("Autocorrelation beam")
+    # ax.set_xlabel("l")
+    # ax.set_ylabel("m")
+    # plt.savefig(output + "/" + "masked_beam_with_sources.png", bbox_inches="tight")
 
     return source_list
 

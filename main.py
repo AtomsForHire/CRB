@@ -64,11 +64,6 @@ def get_config(filename):
         else:
             sys.exit("Please include bandwidth in config file")
 
-        if "bandwidth" in temp.keys():
-            bandwidth = float(temp["bandwidth"])
-        else:
-            sys.exit("Please include bandwidth in config file")
-
         if "output" in temp.keys():
             output = temp["output"]
         else:
@@ -92,7 +87,6 @@ def get_config(filename):
         end_freq,
         D,
         channel_width,
-        bandwidth,
         srclist,
         metafits,
         output,
@@ -101,7 +95,7 @@ def get_config(filename):
     )
 
 
-# Some notes about this program
+# NOTE: Some notes about this program
 # Initially sources are chosen by looking at sources in circle with diameter of the FOV
 # centred around the phase centre.
 # Assuming the phase centre is at zenith
@@ -120,7 +114,6 @@ def main():
         end_freq,
         D,
         channel_width,
-        bandwidth,
         srclist_dir,
         metafits_path,
         output,
@@ -131,16 +124,13 @@ def main():
     Path(output).mkdir(parents=True, exist_ok=True)
 
     print_with_time(
-        f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} channel_width={channel_width} bandwidth={bandwidth} D={D}"
+        f"INPUT SETTINGS: ra={ra_ph} dec={dec_ph} T_sys={T_sys} channel_width={channel_width} start_freq={start_freq} end_freq={end_freq} D={D}"
     )
 
     sigma = CRB.get_rms(T_sys, channel_width, telescope, int_time)
     print_with_time(f"CALCULATED NOISE: {sigma}")
     cut_off = 5 * (sigma / np.sqrt(8256))
     print_with_time(f"CALCULATED CUT OFF FOR SOURCES: {cut_off}")
-
-    # Get observations
-    # get_obs_vec(metafits_dir)
 
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
@@ -166,14 +156,19 @@ def main():
         baseline_lengths = CRB.create_MWA_baselines(metafits_path)
         num_ant = 128
 
-    freq_array = np.arange(start_freq, end_freq, channel_width)
+    # Create arrays that don't need to be created multiple times
+    k_perp = power.create_k_perp(5000, 20)
+    # NOTE: start_freq and end_freq here are the EDGES, could be redefined
+    # to the centres of the starting and end channels
+    freq_array_edges = np.arange(start_freq, end_freq, channel_width)
+    freq_array = (freq_array_edges[:-1] + freq_array_edges[1:]) / 2.0
 
-    vis_uncertainties_store = np.zeros((len(freq_array), 128, 128))
-    # Loop over frequencies and calculate the visibility uncertainties for eqch frequency
-    for i in range(0, 2):
+    pows = list()
+    # Loop over frequencies and calculate the visibility uncertainties for each frequency
+    for i in range(0, 10):
         freq = freq_array[i]
         lamb = const.c / freq
-        print_with_time(f"FREQUENCY: {freq}")
+        print_with_time(f"==================== FREQUENCY: {freq} ====================")
 
         fov_sources = sources.fov_cut(source_list, lamb, D)
         sorted_fov = fov_sources[fov_sources[:, 2].argsort()]
@@ -195,6 +190,7 @@ def main():
         )
 
         mean_CRB = np.mean(uncertainties)
+        print_with_time(f"MEAN CRB: {mean_CRB}")
 
         # Propagate errors into visibilities
         print_with_time("PROPAGATING INTO VISIBILITIES")
@@ -202,32 +198,34 @@ def main():
             baseline_lengths, sorted_source_list, uncertainties, lamb
         )
 
-        vis_uncertainties_store[i, :, :] = uncertainties
+        print_with_time("BINNING ERRORS")
+        vis_mat, u_arr, v_arr = power.uv_bin(
+            lamb, vis_uncertainties, baseline_lengths, output
+        )
 
-        print(vis_uncertainties.shape)
+        # Calculate average power in annuli for this particular frequency
+        print_with_time("POWER SPECTRUM")
+        pow = power.power_bin(vis_mat, u_arr, v_arr, k_perp, output)
+        pows.append(pow)
 
-        # print_with_time("BINNING ERRORS")
-        # vis_mat, u_arr, v_arr = power.uv_bin(
-        #     lamb, vis_uncertainties, baseline_lengths, output
-        # )
-
-        # print_with_time("POWER SPECTRUM")
-        # power.power_bin(vis_mat, u_arr, v_arr, output)
+    pows = np.array(pows)
+    pows_fft = np.fft.fft(pows, axis=0)
+    freq_array_fft = np.fft.fft(freq_array)
 
     # brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV
-    with open("output_" + telescope + ".txt", "w") as f:
-        f.write(
-            f"{'ra':>15s} {'dec':>15s} {'CRB':>15s} {'num src':>15s} {'brightest':>15s}\n"
-        )
-        f.write(
-            f"{ra_ph:15f} {dec_ph:15f} {mean_CRB:15.5e} {len(source_list):15d} {brightest:15.5f}\n"
-        )
+    # with open("output_" + telescope + ".txt", "w") as f:
+    #     f.write(
+    #         f"{'ra':>15s} {'dec':>15s} {'CRB':>15s} {'num src':>15s} {'brightest':>15s}\n"
+    #     )
+    #     f.write(
+    #         f"{ra_ph:15f} {dec_ph:15f} {mean_CRB:15.5e} {len(source_list):15d} {brightest:15.5f}\n"
+    #     )
 
     # Save visibility uncertainties
-    with open("vis_unc_" + telescope + ".txt", "w") as f:
-        for row in vis_uncertainties:
-            f.write(str(row) + "\n")
+    # with open("vis_unc_" + telescope + ".txt", "w") as f:
+    #     for row in vis_uncertainties:
+    #         f.write(str(row) + "\n")
 
 
 if __name__ == "__main__":

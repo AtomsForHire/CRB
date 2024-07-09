@@ -1,10 +1,10 @@
 import numpy as np
-from numba import jit
+from numba import jit, prange
 
 from misc import print_with_time
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def partial(u, v, gain, source_list):
     """Function for evaluating the partial derivative expression
 
@@ -26,7 +26,7 @@ def partial(u, v, gain, source_list):
     """
 
     result = 0
-    for i in range(0, len(source_list)):
+    for i in prange(0, len(source_list)):
         result += source_list[i, 2] * np.exp(
             -2.0 * np.pi * 1j * (u * source_list[i, 0] + v * source_list[i, 1])
         )
@@ -34,6 +34,7 @@ def partial(u, v, gain, source_list):
     return result * gain
 
 
+@jit(nopython=True, cache=True, parallel=True)
 def partial_star(u, v, source_list, gain):
     """Function for evaluating the complex conjugate partial derivative expression
 
@@ -54,7 +55,7 @@ def partial_star(u, v, source_list, gain):
         result of the partial derivative expression
     """
     result = 0
-    for i in range(0, len(source_list)):
+    for i in prange(0, len(source_list)):
         result += source_list[i, 2] * np.exp(
             2.0 * np.pi * 1j * (u * source_list[i, 0] + v * source_list[i, 1])
         )

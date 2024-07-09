@@ -94,7 +94,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
     return np.array(source_list)
 
 
-@jit
+@jit(nopython=True, cache=True)
 def fov_cut(source_list, lamb, D):
     """Function to select sources within an FOV defined by the observing frequency
 
