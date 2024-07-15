@@ -2,6 +2,7 @@ import sys
 import time
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.constants as const
@@ -95,6 +96,32 @@ def get_config(filename):
     )
 
 
+def save_hdf5(k_perp, k_para, power_spec, output, telescope):
+    """Function to save complex matrix to power spectrum
+
+    Parameters
+    ----------
+    - x_axis: `np.array`
+        Should be array of k_perp
+    - y_axis: `np.array`
+        Should be array of k_parallel
+    - power_space: `np.array`
+        matrix to save
+    - output: `string`
+        path to directory for saving
+    - telescope: `string`
+        telescope
+
+    Returns
+    -------
+    None
+    """
+    with h5py.File(output + "/output_" + telescope + ".hdf5", "w") as f:
+        f.create_dataset("k_perp", data=k_perp)
+        f.create_dataset("k_parallel", data=k_para)
+        f.create_dataset("power_spec", data=power_spec)
+
+
 # NOTE: Some notes about this program
 # Initially sources are chosen by looking at sources in circle with diameter of the FOV
 # centred around the phase centre.
@@ -157,15 +184,22 @@ def main():
         num_ant = 128
 
     # Create arrays that don't need to be created multiple times
-    k_perp = power.create_k_perp(5000, 20)
+    k_perp = power.create_k_perp(4000, 20)
     # NOTE: start_freq and end_freq here are the EDGES, could be redefined
     # to the centres of the starting and end channels
-    freq_array_edges = np.arange(start_freq, end_freq, channel_width)
-    freq_array = (freq_array_edges[:-1] + freq_array_edges[1:]) / 2.0
+    # freq_array_edges = np.arange(start_freq, end_freq, channel_width)
+    # freq_array = (freq_array_edges[:-1] + freq_array_edges[1:]) / 2.0
+
+    num_freq = int(np.floor((end_freq - start_freq) / channel_width))
+    # Ensure odd number of frequencies
+    if np.mod(num_freq, 2) == 0:
+        num_freq += 1
+
+    freq_array = np.linspace(start_freq, end_freq, num_freq)
 
     pows = list()
     # Loop over frequencies and calculate the visibility uncertainties for each frequency
-    for i in range(0, 10):
+    for i in range(0, len(freq_array)):
         freq = freq_array[i]
         lamb = const.c / freq
         print_with_time(f"==================== FREQUENCY: {freq} ====================")
@@ -210,8 +244,23 @@ def main():
 
     pows = np.array(pows)
     pows_fft = np.fft.fft(pows, axis=0)
-    freq_array_fft = np.fft.fft(freq_array)
 
+    freq_array_fft = np.abs(np.fft.fft(freq_array))
+
+    # Folding the FT, DC mode at first index.
+    mid = int(np.ceil(num_freq / 2.0))
+    folded = freq_array_fft[0:mid]
+    folded_pow = pows_fft[0:mid, :]
+    folded_pow[1:, :] = (folded_pow[1:, :] + np.flip(pows_fft[mid:, :], axis=0)) / 2.0
+    # folded[1:] = folded[1:] + np.flip(freq_array_fft[mid:])
+
+    save_hdf5(k_perp, folded, folded_pow, output, telescope)
+    # np.savetxt(output + "/power.txt", folded_pow, fmt="%1.4e")
+    # plt.pcolormesh(k_perp, folded, np.abs(folded_pow), norm="log")
+    # plt.yscale("log")
+    # # plt.pcolormesh(np.abs(folded_pow))
+    # plt.colorbar()
+    # plt.show()
     # brightest = np.max(sorted_source_list)
     # Save pointing ra, pointing dec, mean CRB, num sources in FOV, brightest source in FOV
     # with open("output_" + telescope + ".txt", "w") as f:

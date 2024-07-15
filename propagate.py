@@ -4,7 +4,7 @@ from numba import jit, prange
 from misc import print_with_time
 
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def partial(u, v, gain, source_list):
     """Function for evaluating the partial derivative expression
 
@@ -63,7 +63,7 @@ def partial_star(u, v, source_list, gain):
     return result * gain
 
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def propagate(baseline_lengths, source_list, uncertainties, lamb):
     """Function for propagating gain errors into visibilities
 
@@ -88,7 +88,7 @@ def propagate(baseline_lengths, source_list, uncertainties, lamb):
     vis_uncertainties = np.zeros((num_ant, num_ant), dtype="float")
 
     baselines = baseline_lengths / lamb
-    for a in range(0, num_ant):
+    for a in prange(0, num_ant):
         g1_unc = uncertainties[a]
         g1 = 1
         for b in range(0, num_ant):
