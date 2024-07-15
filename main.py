@@ -96,7 +96,9 @@ def get_config(filename):
     )
 
 
-def save_hdf5(k_perp, k_para, power_spec, output, telescope):
+def save_hdf5(
+    k_perp, k_para, power_spec, output, telescope, channel_width, start_freq, end_freq
+):
     """Function to save complex matrix to power spectrum
 
     Parameters
@@ -117,6 +119,9 @@ def save_hdf5(k_perp, k_para, power_spec, output, telescope):
     None
     """
     with h5py.File(output + "/output_" + telescope + ".hdf5", "w") as f:
+        f.attrs["chan_width"] = channel_width
+        f.attrs["start_freq"] = start_freq
+        f.attrs["end_freq"] = end_freq
         f.create_dataset("k_perp", data=k_perp)
         f.create_dataset("k_parallel", data=k_para)
         f.create_dataset("power_spec", data=power_spec)
@@ -254,7 +259,16 @@ def main():
     folded_pow[1:, :] = (folded_pow[1:, :] + np.flip(pows_fft[mid:, :], axis=0)) / 2.0
     # folded[1:] = folded[1:] + np.flip(freq_array_fft[mid:])
 
-    save_hdf5(k_perp, folded, folded_pow, output, telescope)
+    save_hdf5(
+        k_perp,
+        folded,
+        folded_pow,
+        output,
+        telescope,
+        channel_width,
+        start_freq,
+        end_freq,
+    )
     # np.savetxt(output + "/power.txt", folded_pow, fmt="%1.4e")
     # plt.pcolormesh(k_perp, folded, np.abs(folded_pow), norm="log")
     # plt.yscale("log")
