@@ -80,6 +80,11 @@ def get_config(filename):
         else:
             sys.exit("Please include int_time in config file")
 
+        if "obs_name" in temp.keys():
+            obs_name = temp["obs_name"]
+        else:
+            sys.exit("Please include obs_name in config file")
+
     return (
         ra,
         dec,
@@ -93,11 +98,20 @@ def get_config(filename):
         output,
         telescope,
         int_time,
+        obs_name,
     )
 
 
 def save_hdf5(
-    k_perp, k_para, power_spec, output, telescope, channel_width, start_freq, end_freq
+    k_perp,
+    k_para,
+    power_spec,
+    output,
+    telescope,
+    channel_width,
+    start_freq,
+    end_freq,
+    name,
 ):
     """Function to save complex matrix to power spectrum
 
@@ -119,6 +133,7 @@ def save_hdf5(
     None
     """
     with h5py.File(output + "/output_" + telescope + ".hdf5", "w") as f:
+        f.attrs["obs_name"] = name
         f.attrs["chan_width"] = channel_width
         f.attrs["start_freq"] = start_freq
         f.attrs["end_freq"] = end_freq
@@ -151,6 +166,7 @@ def main():
         output,
         telescope,
         int_time,
+        obs_name,
     ) = get_config(config)
 
     Path(output).mkdir(parents=True, exist_ok=True)
@@ -225,7 +241,7 @@ def main():
         # Calculate FIM
         print_with_time("CALCULATING THE FIM")
         uncertainties = CRB.calculate_fim(
-            sorted_source_list, baseline_lengths, num_ant, lamb, sigma, output
+            sorted_source_list, baseline_lengths, num_ant, lamb, freq, sigma, output
         )
 
         mean_CRB = np.mean(uncertainties)
@@ -268,6 +284,7 @@ def main():
         channel_width,
         start_freq,
         end_freq,
+        obs_name,
     )
     # np.savetxt(output + "/power.txt", folded_pow, fmt="%1.4e")
     # plt.pcolormesh(k_perp, folded, np.abs(folded_pow), norm="log")

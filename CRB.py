@@ -22,14 +22,14 @@ from misc import print_with_time
 
 # @jit(nopython=True, cache=True)
 @jit(nopython=True, cache=True, parallel=True)
-def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
+def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq):
     """Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
 
     Parameters
     ----------
     - source_list: `np.array`
-        2D matrix of sources storing [l, m, intensity]
+        2D matrix of sources storing [l, m, intensity, spectral_index, freq]
     - baseline_lengths: `np.array`
         2D matrix containing lengths between antenna
         i and j in both x and y coords [i, j, 0 or 1]
@@ -39,6 +39,8 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
         observing wavelength
     - sigma: `float`
         value from radiometer equation
+    - chan_freq: `float`
+        frequency of current channel
 
     Returns
     -------
@@ -50,16 +52,24 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma):
 
     num_sources = len(source_list)
 
+    original_intensities = source_list[:, 2]
+    spectral_indices = source_list[:, 3]
+    freqs = source_list[:, 4]
+
+    source_intensities = (
+        original_intensities * (chan_freq / freqs[:]) ** spectral_indices
+    )
+
     # Make baselines in wavelengths
     # baseline_lengths = baseline_lengths / 2.0
-    baselines = baseline_lengths / 2.0
+    baselines = baseline_lengths / lamb
     for a in prange(0, num_ant):
         for b in range(a, num_ant):
             for i in range(0, num_sources):
                 for j in range(0, num_sources):
                     fim[a, b] += (
-                        source_list[i, 2]
-                        * source_list[j, 2]
+                        source_intensities[i]
+                        * source_intensities[j]
                         * np.exp(
                             -2
                             * np.pi
@@ -349,7 +359,9 @@ def create_MWA_baselines(metafits_path):
     return baseline_lengths
 
 
-def calculate_fim(source_list, baseline_lengths, num_ant, lamb, sigma, output):
+def calculate_fim(
+    source_list, baseline_lengths, num_ant, lamb, chan_freq, sigma, output
+):
     """Wrapper function for calculating the FIM
 
     Parameters
@@ -362,6 +374,8 @@ def calculate_fim(source_list, baseline_lengths, num_ant, lamb, sigma, output):
         number of antennas
     - lamb: `float`
         observing wavelength
+    - chan_freq: `float`
+        observing frequency
     - sigma: `float`
         value from radiometer equation
     - output: `string`
@@ -374,7 +388,7 @@ def calculate_fim(source_list, baseline_lengths, num_ant, lamb, sigma, output):
     """
 
     t1 = time.time()
-    fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma)
+    fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq)
     t2 = time.time()
 
     print_with_time(f"CALCULATING TOOK: {t2 - t1}s")
