@@ -52,9 +52,9 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq):
 
     num_sources = len(source_list)
 
-    original_intensities = source_list[:, 2]
-    spectral_indices = source_list[:, 3]
-    freqs = source_list[:, 4]
+    original_intensities = source_list[:, 2].copy()
+    spectral_indices = source_list[:, 3].copy()
+    freqs = source_list[:, 4].copy()
 
     source_intensities = (
         original_intensities * (chan_freq / freqs[:]) ** spectral_indices
