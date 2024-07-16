@@ -113,7 +113,6 @@ def save_hdf5(
     end_freq,
     ra,
     dec,
-    telescope,
     name,
 ):
     """Function to save complex matrix to power spectrum
@@ -292,7 +291,6 @@ def main():
         end_freq,
         ra_ph,
         dec_ph,
-        telescope,
         obs_name,
     )
     # np.savetxt(output + "/power.txt", folded_pow, fmt="%1.4e")
