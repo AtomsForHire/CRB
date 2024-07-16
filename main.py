@@ -111,6 +111,9 @@ def save_hdf5(
     channel_width,
     start_freq,
     end_freq,
+    ra,
+    dec,
+    telescope,
     name,
 ):
     """Function to save complex matrix to power spectrum
@@ -134,6 +137,9 @@ def save_hdf5(
     """
     with h5py.File(output + "/output_" + telescope + ".hdf5", "w") as f:
         f.attrs["obs_name"] = name
+        f.attrs["ra"] = ra
+        f.attrs["dec"] = dec
+        f.attrs["telescope"] = telescope
         f.attrs["chan_width"] = channel_width
         f.attrs["start_freq"] = start_freq
         f.attrs["end_freq"] = end_freq
@@ -284,6 +290,9 @@ def main():
         channel_width,
         start_freq,
         end_freq,
+        ra_ph,
+        dec_ph,
+        telescope,
         obs_name,
     )
     # np.savetxt(output + "/power.txt", folded_pow, fmt="%1.4e")
