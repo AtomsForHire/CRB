@@ -67,14 +67,18 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
 
                 if "power_law" in data["flux_type"]:
                     source_intensity = data["flux_type"]["power_law"]["fd"]["i"]
+                    spectral_index = data["flux_type"]["power_law"]["si"]
+                    freq = data["flux_type"]["power_law"]["fd"]["freq"]
 
                 if "curved_power_law" in data["flux_type"]:
                     source_intensity = data["flux_type"]["curved_power_law"]["fd"]["i"]
+                    spectral_index = data["flux_type"]["curved_power_law"]["si"]
+                    freq = data["flux_type"]["curved_power_law"]["fd"]["freq"]
 
                 if source_intensity < cut_off:
                     continue
 
-                temp_array = [l, m, source_intensity]
+                temp_array = [l, m, source_intensity, spectral_index, freq]
                 source_list.append(temp_array)
 
     if not source_list:
