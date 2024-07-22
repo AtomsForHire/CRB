@@ -1,3 +1,4 @@
+import random
 import sys
 import time
 from pathlib import Path
@@ -18,7 +19,7 @@ from misc import print_with_time
 
 def get_config(filename):
     with open(filename) as f:
-        temp = yaml.safe_load(f)
+        temp = yaml.load(f, Loader=Loader)
 
         if "ra" in temp.keys():
             ra = temp["ra"]
@@ -153,6 +154,7 @@ def save_hdf5(
 # Assuming the phase centre is at zenith
 def main():
     np.set_printoptions(linewidth=np.inf)
+    random.seed(0)
 
     if len(sys.argv) < 2:
         sys.exit("Please provide name of the config yaml file")
@@ -224,6 +226,7 @@ def main():
     freq_array = np.linspace(start_freq, end_freq, num_freq)
 
     pows = list()
+    start_time = time.time()
     # Loop over frequencies and calculate the visibility uncertainties for each frequency
     for i in range(0, len(freq_array)):
         freq = freq_array[i]
@@ -244,29 +247,37 @@ def main():
         sorted_source_list = CRB.attenuate(sorted_fov, beam, l_arr, m_arr, output)
 
         # Calculate FIM
-        print_with_time("CALCULATING THE FIM")
-        uncertainties = CRB.calculate_fim(
+        print_with_time("CALCULATING THE CRB")
+        covar_mat = CRB.calculate_fim(
             sorted_source_list, baseline_lengths, num_ant, lamb, freq, sigma, output
         )
 
-        mean_CRB = np.mean(uncertainties)
-        print_with_time(f"MEAN CRB: {mean_CRB}")
+        # mean_CRB = np.mean(uncertainties)
+        # print_with_time(f"MEAN CRB: {mean_CRB}")
 
         # Propagate errors into visibilities
         print_with_time("PROPAGATING INTO VISIBILITIES")
         vis_uncertainties = propagate.propagate(
-            baseline_lengths, sorted_source_list, uncertainties, lamb
+            baseline_lengths, sorted_source_list, covar_mat, lamb
         )
+
+        print_with_time("REALIZE ERRORS")
+        realised_unc = propagate.realise(vis_uncertainties)
 
         print_with_time("BINNING ERRORS")
         vis_mat, u_arr, v_arr = power.uv_bin(
-            lamb, vis_uncertainties, baseline_lengths, output
+            lamb, realised_unc, baseline_lengths, output
         )
 
         # Calculate average power in annuli for this particular frequency
-        print_with_time("POWER SPECTRUM")
+        print_with_time("ANGULAR POWER SPECTRUM")
         pow = power.power_bin(vis_mat, u_arr, v_arr, k_perp, output)
         pows.append(pow)
+
+        # plt.plot(k_perp, pow)
+        # plt.xlabel("k_perp")
+        # plt.ylabel("Average visibility rms")
+        # plt.show()
 
     pows = np.array(pows)
     pows_fft = np.fft.fft(pows, axis=0)
@@ -279,6 +290,9 @@ def main():
     folded_pow = pows_fft[0:mid, :]
     folded_pow[1:, :] = (folded_pow[1:, :] + np.flip(pows_fft[mid:, :], axis=0)) / 2.0
     # folded[1:] = folded[1:] + np.flip(freq_array_fft[mid:])
+
+    end_time = time.time()
+    print_with_time(f"TOTAL RUN TIME: {end_time - start_time}")
 
     save_hdf5(
         k_perp,

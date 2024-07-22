@@ -403,7 +403,8 @@ def calculate_fim(
             f.write(" ".join([str(abs(a)) for a in row]) + "\n")
 
     # Calculate the CRB, which is the inverse of the FIM
-    crb = np.sqrt(np.linalg.inv(fim_cos))
+    # crb = np.sqrt(np.linalg.inv(fim_cos))
+    crb = np.linalg.inv(fim_cos)
 
     with open(output + "/" + "crb_abs.txt", "w") as f:
         for row in crb:
@@ -413,11 +414,9 @@ def calculate_fim(
         for row in crb:
             f.write(" ".join([str(a) for a in row]) + "\n")
 
-    diag = np.diagonal(abs(crb))
-
-    with open(output + "/" + "diag.txt", "w") as f:
-        for row in diag:
-            f.write(str(row) + "\n")
+        # with open(output + "/" + "diag.txt", "w") as f:
+        #     for row in diag:
+        #         f.write(str(row) + "\n")
 
         # plt.matshow(abs(fim_cos))
         # plt.colorbar()
@@ -434,7 +433,7 @@ def calculate_fim(
         # plt.plot(range(0, 128), diag)
         # plt.savefig(output + "/" + "diag.pdf", bbox_inches="tight")
 
-        return diag
+        return crb
 
 
 @jit(nopython=True, cache=True)

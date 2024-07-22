@@ -140,6 +140,8 @@ def power_bin(vis_mat, u_arr, v_arr, k_perp, output):
 
     pow = np.zeros(len(k_perp), dtype=np.complex64)
 
+    # Loop through all grid points, check if their position are within the annuli
+    # and if the grid has a non-zero value
     for i in range(1, len(k_perp)):
         num_in_annuli = 0
         for j in range(0, len(u_arr)):
@@ -147,11 +149,15 @@ def power_bin(vis_mat, u_arr, v_arr, k_perp, output):
             for k in range(0, len(v_arr)):
                 v = v_arr[k]
                 dist = np.sqrt(u**2 + v**2)
+                if np.abs(vis_mat[j, k]) == 0:
+                    continue
+
                 if dist >= k_perp[i - 1] and dist < k_perp[i]:
                     num_in_annuli += 1
                     pow[i] += vis_mat[j, k]
 
-        pow[i] /= num_in_annuli
+        if num_in_annuli != 0:
+            pow[i] /= num_in_annuli
 
     pow *= np.conjugate(pow)
 
