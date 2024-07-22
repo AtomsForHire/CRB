@@ -23,7 +23,6 @@ def realise(vis_uncertainties):
         for b in range(0, num_ant):
             if vis_uncertainties[a, b].imag > 10 ^ -30:
                 print(a, b, vis_uncertainties[a, b].imag)
-                exit("IMAGINARY PART QUITE LARGE")
             sigma = vis_uncertainties[a, b].real / np.sqrt(2)
             real = np.random.normal(0, sigma)
             imag = np.random.normal(0, sigma)
