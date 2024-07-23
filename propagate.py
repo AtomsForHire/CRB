@@ -54,7 +54,7 @@ def partial(u, v, gain, source_list):
     """
 
     result = 0
-    for i in prange(0, len(source_list)):
+    for i in range(0, len(source_list)):
         result += source_list[i, 2] * np.exp(
             -2.0 * np.pi * 1j * (u * source_list[i, 0] + v * source_list[i, 1])
         )
@@ -62,6 +62,7 @@ def partial(u, v, gain, source_list):
     return result * gain
 
 
+@jit(nopython=True)
 def partial_star(u, v, gain, source_list):
     """Function for evaluating the partial derivative expression
 
@@ -83,7 +84,7 @@ def partial_star(u, v, gain, source_list):
     """
 
     result = 0
-    for i in prange(0, len(source_list)):
+    for i in range(0, len(source_list)):
         result += source_list[i, 2] * np.exp(
             2.0 * np.pi * 1j * (u * source_list[i, 0] + v * source_list[i, 1])
         )
@@ -91,7 +92,7 @@ def partial_star(u, v, gain, source_list):
     return result * gain
 
 
-# @jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def propagate(baseline_lengths, source_list, covar_mat, lamb):
     """Function for propagating gain errors into visibilities
 
@@ -117,7 +118,7 @@ def propagate(baseline_lengths, source_list, covar_mat, lamb):
 
     baselines = baseline_lengths / lamb
     # Loop through antennas
-    for a in prange(0, num_ant):
+    for a in range(0, num_ant):
         g1_var = covar_mat[a, a]
         g1 = 1
         for b in range(0, num_ant):
@@ -133,10 +134,11 @@ def propagate(baseline_lengths, source_list, covar_mat, lamb):
             dvdg1 = partial(u, v, g1, source_list)
             dvdg2 = partial(u, v, g2, source_list)
             dvdg1_star = partial_star(u, v, g1, source_list)
-            dvdg2_star = partial_star(u, v, g2, source_list)
+
             vis_uncertainties[a, b] = np.abs(dvdg1) ** 2 * g1_var**2
             +np.abs(dvdg2) ** 2 * g2_var**2
-            +dvdg1_star * dvdg2 * g2g1_covar
-            +dvdg2_star * dvdg1 * g1g2_covar
+            dvdg1_star * (g2g1_covar + g1g2_covar)
+            # +dvdg1_star * dvdg2 * g2g1_covar
+            # +dvdg2_star * dvdg1 * g1g2_covar
 
     return np.sqrt(vis_uncertainties)

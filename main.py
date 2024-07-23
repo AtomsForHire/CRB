@@ -229,6 +229,7 @@ def main():
     start_time = time.time()
     # Loop over frequencies and calculate the visibility uncertainties for each frequency
     for i in range(0, len(freq_array)):
+        loop_start = time.time()
         freq = freq_array[i]
         lamb = const.c / freq
         print_with_time(f"==================== FREQUENCY: {freq} ====================")
@@ -278,6 +279,8 @@ def main():
         # plt.xlabel("k_perp")
         # plt.ylabel("Average visibility rms")
         # plt.show()
+        loop_end = time.time()
+        print_with_time(f"TOTAL RUN TIME FOR THIS FREQ: {loop_end} - {loop_start}")
 
     pows = np.array(pows)
     pows_fft = np.fft.fft(pows, axis=0)
