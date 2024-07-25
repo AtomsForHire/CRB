@@ -105,13 +105,13 @@ def get_config(filename):
 
 def save_hdf5(
     k_perp,
-    k_para,
     power_spec,
     output,
     telescope,
     channel_width,
     start_freq,
     end_freq,
+    num_freq,
     ra,
     dec,
     name,
@@ -143,8 +143,8 @@ def save_hdf5(
         f.attrs["chan_width"] = channel_width
         f.attrs["start_freq"] = start_freq
         f.attrs["end_freq"] = end_freq
+        f.attrs["num_freq"] = num_freq
         f.create_dataset("k_perp", data=k_perp)
-        f.create_dataset("k_parallel", data=k_para)
         f.create_dataset("power_spec", data=power_spec)
 
 
@@ -288,11 +288,11 @@ def main():
     pows = np.array(pows)
     pows_fft = np.fft.fft(pows, axis=0)
 
-    freq_array_fft = np.abs(np.fft.fft(freq_array))
+    # freq_array_fft = np.abs(np.fft.fftfreq(freq_array))
 
     # Folding the FT, DC mode at first index.
     mid = int(np.ceil(num_freq / 2.0))
-    folded = freq_array_fft[0:mid]
+    # folded = freq_array_fft[0:mid]
     folded_pow = pows_fft[0:mid, :]
     folded_pow[1:, :] = (folded_pow[1:, :] + np.flip(pows_fft[mid:, :], axis=0)) / 2.0
     # folded[1:] = folded[1:] + np.flip(freq_array_fft[mid:])
@@ -303,13 +303,13 @@ def main():
 
     save_hdf5(
         k_perp,
-        folded,
         folded_pow,
         output,
         telescope,
         channel_width,
         start_freq,
         end_freq,
+        num_freq,
         ra_ph,
         dec_ph,
         obs_name,
