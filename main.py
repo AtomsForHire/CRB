@@ -283,7 +283,7 @@ def main():
         # plt.ylabel("Average visibility rms")
         # plt.show()
         loop_end = time.time()
-        print_with_time(f"TOTAL RUN TIME FOR THIS FREQ: {loop_end} - {loop_start}")
+        print_with_time(f"TOTAL RUN TIME FOR THIS FREQ: {loop_end - loop_start}")
 
     pows = np.array(pows)
     pows_fft = np.fft.fft(pows, axis=0)
