@@ -21,7 +21,7 @@ def realise(vis_uncertainties):
     realised_unc = np.zeros((num_ant, num_ant), dtype=np.complex64)
     for a in prange(0, num_ant):
         for b in range(0, num_ant):
-            if vis_uncertainties[a, b].imag > 1e-30:
+            if vis_uncertainties[a, b].imag > 1e-28:
                 print(a, b, vis_uncertainties[a, b].imag)
             sigma = vis_uncertainties[a, b].real / np.sqrt(2)
             real = np.random.normal(0, sigma)
@@ -62,7 +62,7 @@ def partial(u, v, gain, source_list):
     return result * gain
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def partial_star(u, v, gain, source_list):
     """Function for evaluating the partial derivative expression
 
