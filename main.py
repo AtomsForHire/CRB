@@ -298,7 +298,8 @@ def main():
     # folded[1:] = folded[1:] + np.flip(freq_array_fft[mid:])
 
     end_time = time.time()
-    print_with_time(f"TOTAL RUN TIME: {end_time - start_time}")
+    total = end_time - start_time
+    print_with_time(f"TOTAL RUN TIME: {total}")
 
     save_hdf5(
         k_perp,
