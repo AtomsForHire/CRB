@@ -252,9 +252,9 @@ def main():
         covar_mat = CRB.calculate_fim(
             sorted_source_list, baseline_lengths, num_ant, lamb, freq, sigma, output
         )
-    
+
         mean_gain_unc = np.mean(np.sqrt(np.diag(covar_mat)))
-        print_with_time(f"MEAN GAIN UNCERTAINTY: {mean_gain_unc})
+        print_with_time(f"MEAN GAIN UNCERTAINTY: {mean_gain_unc}")
 
         # mean_CRB = np.mean(uncertainties)
         # print_with_time(f"MEAN CRB: {mean_CRB}")
@@ -264,7 +264,6 @@ def main():
         vis_uncertainties = propagate.propagate(
             baseline_lengths, sorted_source_list, covar_mat, lamb
         )
-
 
         print_with_time("REALIZE ERRORS")
         realised_unc = propagate.realise(vis_uncertainties)
