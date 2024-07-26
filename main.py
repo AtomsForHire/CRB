@@ -265,6 +265,9 @@ def main():
             baseline_lengths, sorted_source_list, covar_mat, lamb
         )
 
+        mean_vis_unc = np.mean(vis_uncertainties)
+        print_with_time(f"AVERAGE VISIBILITY ERROR {mean_vis_unc}")
+
         print_with_time("REALIZE ERRORS")
         realised_unc = propagate.realise(vis_uncertainties)
 
