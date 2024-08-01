@@ -22,7 +22,9 @@ from misc import print_with_time
 
 # @jit(nopython=True, cache=True)
 @jit(nopython=True, cache=True, parallel=True)
-def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq):
+def fim_loop(
+    source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq, source_types
+):
     """Function for executing the loop required to calculate the FIM
     separate from the wrapper to allow Numba to work
 
@@ -55,9 +57,25 @@ def fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq):
     original_intensities = source_list[:, 2].copy()
     spectral_indices = source_list[:, 3].copy()
     freqs = source_list[:, 4].copy()
+    q = source_list[:, 5].copy()
 
-    source_intensities = (
-        original_intensities * (chan_freq / freqs[:]) ** spectral_indices
+    source_intensities = np.zeros(num_sources)
+
+    source_intensities[np.where(source_types == "power_law")] = (
+        original_intensities[np.where(source_types == "power_law")]
+        * (chan_freq / freqs[np.where(source_types == "power_law")])
+        ** spectral_indices[np.where(source_types == "power_law")]
+    )
+
+    source_intensities[np.where(source_types == "curved_power_law")] = (
+        original_intensities[np.where(source_types == "curved_power_law")]
+        * (chan_freq / freqs[np.where(source_types == "curved_power_law")])
+        ** spectral_indices[np.where(source_types == "curved_power_law")]
+        * np.exp(
+            q[np.where(source_types == "curved_power_law")]
+            * np.log(chan_freq / freqs[np.where(source_types == "curved_power_law")])
+            ** 2
+        )
     )
 
     # Make baselines in wavelengths
@@ -360,7 +378,7 @@ def create_MWA_baselines(metafits_path):
 
 
 def calculate_fim(
-    source_list, baseline_lengths, num_ant, lamb, chan_freq, sigma, output
+    source_list, baseline_lengths, num_ant, lamb, chan_freq, sigma, output, source_types
 ):
     """Wrapper function for calculating the FIM
 
@@ -388,7 +406,9 @@ def calculate_fim(
     """
 
     t1 = time.time()
-    fim_cos = fim_loop(source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq)
+    fim_cos = fim_loop(
+        source_list, baseline_lengths, num_ant, lamb, sigma, chan_freq, source_types
+    )
     t2 = time.time()
 
     print_with_time(f"CALCULATING TOOK: {t2 - t1}s")

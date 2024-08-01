@@ -37,6 +37,7 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
         # store l, m, intensity values in this array
         # source_list = np.zeros((num_sources, 3))
         source_list = list()
+        source_type = list()
 
         for key in temp:
             num_sources_in_key = len(temp[key])
@@ -69,16 +70,20 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
                     source_intensity = data["flux_type"]["power_law"]["fd"]["i"]
                     spectral_index = data["flux_type"]["power_law"]["si"]
                     freq = data["flux_type"]["power_law"]["fd"]["freq"]
+                    q = 0
+                    source_type.append("power_law")
 
                 if "curved_power_law" in data["flux_type"]:
                     source_intensity = data["flux_type"]["curved_power_law"]["fd"]["i"]
                     spectral_index = data["flux_type"]["curved_power_law"]["si"]
                     freq = data["flux_type"]["curved_power_law"]["fd"]["freq"]
+                    q = data["flux_type"]["curved_power_law"]["q"]
+                    source_type.append("curved_power_law")
 
                 if source_intensity < cut_off:
                     continue
 
-                temp_array = [l, m, source_intensity, spectral_index, freq]
+                temp_array = [l, m, source_intensity, spectral_index, freq, q]
                 source_list.append(temp_array)
 
     if not source_list:
@@ -95,11 +100,11 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
     # ax.set_ylim(-1, 1)
     # ax.add_patch(circle1)
     # plt.savefig(output + "/" + "sources.png")
-    return np.array(source_list)
+    return np.array(source_list), np.array(source_type)
 
 
 @jit(nopython=True, cache=True)
-def fov_cut(source_list, lamb, D):
+def fov_cut(source_list, source_types, lamb, D):
     """Function to select sources within an FOV defined by the observing frequency
 
     Parameters
@@ -126,4 +131,7 @@ def fov_cut(source_list, lamb, D):
     m_arr = source_list[:, 1]
     dist = np.sqrt(l_arr**2 + m_arr**2)
 
-    return source_list[dist < np.sin(fov / 2.0), :]
+    return (
+        source_list[dist < np.sin(fov / 2.0), :],
+        source_types[dist < np.sin(fov / 2.0)],
+    )

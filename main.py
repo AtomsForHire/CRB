@@ -153,7 +153,7 @@ def save_hdf5(
 # centred around the phase centre.
 # Assuming the phase centre is at zenith
 def main():
-    np.set_printoptions(linewidth=np.inf)
+    # np.set_printoptions(linewidth=np.inf)
     random.seed(0)
 
     if len(sys.argv) < 2:
@@ -190,14 +190,14 @@ def main():
     # Get source list
     print_with_time(f"READING IN SOURCE LIST FROM: {srclist_dir}")
     t1 = time.time()
-    # NOTE: Should this be number of unique baselines
-    # Or total number of baselines including redundant ones
-    # which would surmount to a large number
-    source_list = sources.get_source_list(srclist_dir, ra_ph, dec_ph, cut_off, output)
+    source_list, source_types = sources.get_source_list(
+        srclist_dir, ra_ph, dec_ph, cut_off, output
+    )
     t2 = time.time()
 
     print_with_time(f"READING IN TOOK: {t2 - t1}s")
     print_with_time(f"NUMBER OF SOURCES: {len(source_list)}")
+    print(source_list)
     # print_with_time(f"TOP 10 SOURCES IN LIST ORDERED BY BRIGHTNESS")
     # sorted_source_list = source_list[source_list[:, 2].argsort()]
     # print(sorted_source_list[-10:])
@@ -234,8 +234,24 @@ def main():
         lamb = const.c / freq
         print_with_time(f"==================== FREQUENCY: {freq} ====================")
 
-        fov_sources = sources.fov_cut(source_list, lamb, D)
+        fov_sources, fov_source_types = sources.fov_cut(
+            source_list, source_types, lamb, D
+        )
+        # print("UNSORTED")
+        # print(f"{len(fov_sources)}, {len(fov_source_types)}")
+        # for i in range(0, len(fov_sources)):
+        #     print(
+        #         f"{fov_sources[i, 0]} {fov_sources[i, 1]} {fov_sources[i, 2]} {fov_source_types[i]}"
+        #     )
+
         sorted_fov = fov_sources[fov_sources[:, 2].argsort()]
+        sorted_fov_source_types = fov_source_types[fov_sources[:, 2].argsort()]
+        # print("SORTED")
+        # print(f"{len(sorted_fov)}, {len(sorted_fov_source_types)}")
+        # for i in range(0, len(fov_sources)):
+        #     print(
+        #         f"{sorted_fov[i, 0]} {sorted_fov[i, 1]} {sorted_fov[i, 2]} {sorted_fov_source_types[i]}"
+        #     )
         print_with_time(f"NUMBER OF SOURCES: {len(fov_sources)}")
 
         print_with_time("CALCULATING BEAM")
@@ -246,18 +262,23 @@ def main():
 
         print_with_time("ATTENUATING WITH BEAM")
         sorted_source_list = CRB.attenuate(sorted_fov, beam, l_arr, m_arr, output)
+        # print(sorted_source_list)
 
         # Calculate FIM
         print_with_time("CALCULATING THE CRB")
         covar_mat = CRB.calculate_fim(
-            sorted_source_list, baseline_lengths, num_ant, lamb, freq, sigma, output
+            sorted_source_list,
+            baseline_lengths,
+            num_ant,
+            lamb,
+            freq,
+            sigma,
+            output,
+            sorted_fov_source_types,
         )
 
         mean_gain_unc = np.mean(np.sqrt(np.diag(covar_mat)))
         print_with_time(f"MEAN GAIN UNCERTAINTY: {mean_gain_unc}")
-
-        # mean_CRB = np.mean(uncertainties)
-        # print_with_time(f"MEAN CRB: {mean_CRB}")
 
         # Propagate errors into visibilities
         print_with_time("PROPAGATING INTO VISIBILITIES")
@@ -281,10 +302,6 @@ def main():
         pow = power.power_bin(vis_mat, u_arr, v_arr, k_perp, output)
         pows.append(pow)
 
-        # plt.plot(k_perp, pow)
-        # plt.xlabel("k_perp")
-        # plt.ylabel("Average visibility rms")
-        # plt.show()
         loop_end = time.time()
         print_with_time(f"TOTAL RUN TIME FOR THIS FREQ: {loop_end - loop_start}")
 
