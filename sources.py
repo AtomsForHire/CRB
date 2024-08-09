@@ -39,12 +39,15 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
         source_list = list()
         source_type = list()
 
+        deg_to_rad = np.pi / 180.0
+        ra_ph *= deg_to_rad
+        dec_ph *= deg_to_rad
         for key in temp:
             num_sources_in_key = len(temp[key])
             for i in range(0, num_sources_in_key):
                 data = temp[key][i]
-                ra = data["ra"]
-                dec = data["dec"]
+                ra = data["ra"] * deg_to_rad
+                dec = data["dec"] * deg_to_rad
 
                 dra = ra - ra_ph
                 ddec = dec - dec_ph
@@ -82,6 +85,10 @@ def get_source_list(filename, ra_ph, dec_ph, cut_off, output):
 
                 if source_intensity < cut_off:
                     continue
+
+                print(
+                    f"ra: {ra}, dec: {dec}, l: {l}, m: {m}, dist: {np.sqrt(l**2 + m**2)}"
+                )
 
                 temp_array = [l, m, source_intensity, spectral_index, freq, q]
                 source_list.append(temp_array)
@@ -131,6 +138,7 @@ def fov_cut(source_list, source_types, lamb, D):
     m_arr = source_list[:, 1]
     dist = np.sqrt(l_arr**2 + m_arr**2)
 
+    print(lamb, np.sin(fov / 2.0))
     return (
         source_list[dist < np.sin(fov / 2.0), :],
         source_types[dist < np.sin(fov / 2.0)],
