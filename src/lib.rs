@@ -177,6 +177,11 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
             );
         }
 
+        debug!(
+            "Total summed flux density: {}",
+            sorted_source_intensities.sum()
+        );
+
         // =====================================================================
         // Calculate beam response for all sources
         let responses = beam::calc_jones_response(&tm, &sorted_source_lmn, lambda_m);
@@ -196,6 +201,11 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
                 sorted_source_intensities[i]
             );
         }
+
+        debug!(
+            "Total summed flux density: {}",
+            sorted_source_intensities.sum()
+        );
 
         // =====================================================================
         // Calculate CRB

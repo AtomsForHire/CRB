@@ -10,7 +10,10 @@ fn main() {
         _ => LevelFilter::Trace,
     };
 
-    env_logger::Builder::new().filter_level(log_level).init();
+    env_logger::Builder::new()
+        .target(env_logger::Target::Stdout)
+        .filter_level(log_level)
+        .init();
 
     if let Err(e) = CRB::run(args.config) {
         eprintln!("Error: {e}");
