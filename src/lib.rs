@@ -15,7 +15,15 @@ use srclist::*;
 use log::{debug, info, warn};
 use thiserror::Error;
 
-use crate::{config::Config, math::create_baselines};
+use crate::{
+    config::Config,
+    math::{
+        Executor,
+        cpu::CpuExecutor,
+        create_baselines,
+        gpu::{self, GpuExecutor},
+    },
+};
 
 pub mod config;
 
@@ -38,6 +46,9 @@ pub enum RunError {
 
     #[error("Math error: {0}")]
     MathError(#[from] math::error::MathError),
+
+    #[error("GPU error: {0}")]
+    GpuError(#[from] gpu::error::GpuError),
 }
 
 fn compare_f64(a: &f64, b: &f64) -> std::cmp::Ordering {
@@ -116,6 +127,12 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     // Saving arrays
     let mut gain_unc_array = Array2::<f64>::zeros((n_stations, num_freq));
     let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, n_stations));
+
+    let executor: Box<dyn Executor> = if config.use_gpu {
+        Box::new(GpuExecutor::new()?)
+    } else {
+        Box::new(CpuExecutor::new())
+    };
 
     // Perform the loop
     for (freq_idx, freq) in freq_array.iter().enumerate() {
@@ -209,7 +226,7 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
 
         // =====================================================================
         // Calculate CRB
-        let crb = math::calculate_crb(
+        let crb = executor.calculate_crb(
             n_stations,
             &baselines_xy,
             &sorted_source_intensities,

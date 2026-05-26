@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
+    pub use_gpu: bool,
     pub srclist: PathBuf,
     pub output: PathBuf,
     pub obs_config: ObservationConfig,

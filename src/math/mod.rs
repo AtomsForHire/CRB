@@ -1,4 +1,6 @@
+pub mod cpu;
 pub mod error;
+pub mod gpu;
 
 use error::MathError;
 use num_complex::*;
@@ -52,57 +54,14 @@ pub(crate) fn create_baselines(tel_layout: &tm::CoordinateList) -> Array3<f64> {
     return baselines_xy;
 }
 
-pub(crate) fn calculate_crb(
-    n_ant: usize,
-    baselines_xy: &Array3<f64>,
-    source_intensities: &Array1<f64>,
-    source_lmn: &Array2<f64>,
-    lambda: f64,
-    sigma: f64,
-) -> Result<Array2<f64>, MathError> {
-    let num_sources: usize = source_intensities.len();
-
-    let baselines = baselines_xy / lambda;
-    let sum_b: f64 = source_intensities.iter().sum();
-    let diagonal_term_additive: f64 = 131.0 * sum_b * sum_b;
-
-    // Let each thread work on a different row of the matrix
-    // then combine everything with 'reduce_with'
-    let mut fim = (0usize..n_ant)
-        .into_par_iter()
-        .map(|a| {
-            let mut local_fim = Array2::<f64>::zeros((n_ant, n_ant));
-            for b in a..n_ant {
-                let u_ab = baselines[[a, b, 0]];
-                let v_ab = baselines[[a, b, 1]];
-                let mut s_ab: Complex64 = Complex64::new(0.0, 0.0);
-                for idx_i in 0usize..num_sources {
-                    let phase_arg: f64 =
-                        -2.0 * PI * (u_ab * source_lmn[[idx_i, 0]] + v_ab * source_lmn[[idx_i, 1]]);
-                    s_ab += source_intensities[[idx_i]] * (Complex64::i() * phase_arg).exp();
-                }
-
-                local_fim[[a, b]] = s_ab.norm_sqr();
-
-                if a == b {
-                    local_fim[[a, b]] *= 131.0; // diagonal_term_additive;
-                }
-            }
-
-            local_fim
-        })
-        .reduce_with(|accum, local_fim| accum + local_fim)
-        .ok_or_else(|| MathError::CrbError)?;
-
-    // Only calculated the 'top fin' so fill in the bottom fin
-    for a in 0usize..n_ant {
-        for b in a..n_ant {
-            fim[[b, a]] = fim[[a, b]].conj();
-        }
-    }
-
-    fim = 2.0 / sigma.powi(2) * fim;
-
-    let crb = fim.inv()?;
-    return Ok(crb);
+pub(crate) trait Executor {
+    fn calculate_crb(
+        &self,
+        n_ant: usize,
+        baselines_xy: &Array3<f64>,
+        source_intensities: &Array1<f64>,
+        source_lmn: &Array2<f64>,
+        lambda: f64,
+        sigma: f64,
+    ) -> Result<Array2<f64>, MathError>;
 }
