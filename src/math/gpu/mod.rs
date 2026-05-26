@@ -63,7 +63,7 @@ impl GpuExecutor {
         let context = Context::from_device(&device)?;
 
         // Create queue
-        let command_queue = CommandQueue::create_default(&context, CL_QUEUE_PROFILING_ENABLE)?;
+        let command_queue = CommandQueue::create_default(&context, 0)?;
 
         // Create program
         let program = Program::create_and_build_from_source(&context, KERNEL, build_options)
