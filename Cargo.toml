@@ -20,6 +20,7 @@ ndarray = {version = "0.17.2", features = ["rayon"] }
 ndarray-linalg = { version = "0.18.1", features = ["openblas-system"] }
 num-complex = "0.4.6"
 num-traits = "0.2.19"
+opencl3 = "0.12.3"
 physical_constants = "0.5.0"
 rayon = "1.12.0"
 serde = { version = "1.0.228", features = ["derive"] }

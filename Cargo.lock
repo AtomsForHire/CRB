@@ -22,6 +22,7 @@ dependencies = [
  "ndarray-linalg",
  "num-complex",
  "num-traits",
+ "opencl3",
  "physical_constants",
  "rayon",
  "serde",
@@ -320,6 +321,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cl3"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ad5f4170f520224684c5c6e86e8d5474c2a10696e553b1db8389970cd82ece7"
+dependencies = [
+ "dlopen2",
+ "libc",
+ "opencl-sys",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "clap"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -605,6 +618,29 @@ name = "displaydoc"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "dlopen2"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e2c5bd4158e66d1e215c49b837e11d62f3267b30c92f1d171c4d3105e3dc4d4"
+dependencies = [
+ "dlopen2_derive",
+ "libc",
+ "once_cell",
+ "winapi",
+]
+
+[[package]]
+name = "dlopen2_derive"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fbbb781877580993a8707ec48672673ec7b81eeba04cfd2310bd28c08e47c8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1734,6 +1770,25 @@ dependencies = [
  "openblas-build",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "opencl-sys"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bd005f352b2f05acd01d04122448e84f8bc66bdae49045927841bc63de62123"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "opencl3"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecb3473c4f01afd0eea3ee5b31649fec47dbc23353a63e1b916aa67cd810fb73"
+dependencies = [
+ "cl3",
+ "libc",
 ]
 
 [[package]]
