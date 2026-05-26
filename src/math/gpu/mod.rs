@@ -1,10 +1,11 @@
 pub mod error;
 
 use super::error::MathError;
+use log::info;
 use num_complex::*;
 use opencl3::memory::{Buffer, CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY};
 use opencl3::program::Program;
-use opencl3::types::{CL_BLOCKING, cl_double, cl_uint};
+use opencl3::types::{CL_BLOCKING, cl_double, cl_float, cl_uint};
 use std::f64::consts::PI;
 use std::ptr;
 
@@ -19,6 +20,16 @@ use opencl3::device::{CL_DEVICE_TYPE_GPU, Device, get_all_devices};
 use opencl3::kernel::{ExecuteKernel, Kernel};
 use rayon::prelude::*;
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "gpu-single")]{
+        type GpuFloat = f32;
+        type ClFloat = cl_float;
+    } else {
+        pub type GpuFloat = f64;
+        type ClFloat = cl_double;
+    }
+}
+
 pub(crate) struct GpuExecutor {
     context: Context,
     command_queue: CommandQueue,
@@ -29,6 +40,12 @@ const KERNEL: &str = include_str!("./crb_kernel.cl");
 
 impl GpuExecutor {
     pub(crate) fn new() -> Result<Self, error::GpuError> {
+        let build_options = if cfg!(feature = "gpu-single") {
+            "-DREAL=float -DREAL2=float2 -DREAL4=float4 -DSINGLE"
+        } else {
+            "-DREAL=double -DREAL2=double2 -DREAL4=double4"
+        };
+
         // Query all available devices
         let devices = get_all_devices(CL_DEVICE_TYPE_GPU)?;
 
@@ -36,6 +53,11 @@ impl GpuExecutor {
         let d_id = devices.first().expect("No GPU device found");
 
         let device = Device::new(*d_id);
+        info!("CL_DEVICE_VENDOR: {:?}", device.vendor()?);
+        info!("CL_DEVICE_NAME: {:?}", device.name()?);
+        info!("CL_DEVICE_VERSION: {:?}", device.version()?);
+        info!("CL_DEVICE_PROFILE: {:?}", device.profile()?);
+        info!("CL_DEVICE_EXTENSIONS: {:?}", device.extensions()?);
 
         // Create context
         let context = Context::from_device(&device)?;
@@ -44,8 +66,8 @@ impl GpuExecutor {
         let command_queue = CommandQueue::create_default(&context, CL_QUEUE_PROFILING_ENABLE)?;
 
         // Create program
-        let program = Program::create_and_build_from_source(&context, KERNEL, "")
-            .expect("Could not create program");
+        let program = Program::create_and_build_from_source(&context, KERNEL, build_options)
+            .expect("Could not create program on device");
 
         // Create kernel
         let kernel = Kernel::create(&program, "calculate_crb_kernel")?;
@@ -72,27 +94,43 @@ impl Executor for GpuExecutor {
         let num_sources: usize = source_intensities.len();
 
         // Flatten baselines
-        let baselines_x: Vec<f64> = baselines_xy
+        let baselines_x: Vec<GpuFloat> = baselines_xy
             .slice(s![.., .., 0])
             .flatten_with_order(ndarray::Order::RowMajor)
             .into_iter()
+            .map(|x| x as GpuFloat)
             .collect();
 
-        let baselines_y: Vec<f64> = baselines_xy
+        let baselines_y: Vec<GpuFloat> = baselines_xy
             .slice(s![.., .., 1])
             .flatten_with_order(ndarray::Order::RowMajor)
             .into_iter()
+            .map(|x| x as GpuFloat)
             .collect();
 
         let n_d_baselines = baselines_x.len();
 
-        let source_l: Vec<f64> = source_lmn.slice(s![.., 0]).iter().copied().collect();
-        let source_m: Vec<f64> = source_lmn.slice(s![.., 1]).iter().copied().collect();
-        let source_intensities_vec: Vec<f64> = source_intensities.iter().copied().collect();
+        let source_l: Vec<GpuFloat> = source_lmn
+            .slice(s![.., 0])
+            .iter()
+            .copied()
+            .map(|x| x as GpuFloat)
+            .collect();
+        let source_m: Vec<GpuFloat> = source_lmn
+            .slice(s![.., 1])
+            .iter()
+            .copied()
+            .map(|x| x as GpuFloat)
+            .collect();
+        let source_intensities_vec: Vec<GpuFloat> = source_intensities
+            .iter()
+            .copied()
+            .map(|x| x as GpuFloat)
+            .collect();
 
         // Create device buffers
         let mut d_baselines_x = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_READ_ONLY,
                 n_d_baselines,
@@ -100,7 +138,7 @@ impl Executor for GpuExecutor {
             )?
         };
         let mut d_baselines_y = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_READ_ONLY,
                 n_d_baselines,
@@ -108,7 +146,7 @@ impl Executor for GpuExecutor {
             )?
         };
         let mut d_source_intensities = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_READ_ONLY,
                 num_sources,
@@ -116,7 +154,7 @@ impl Executor for GpuExecutor {
             )?
         };
         let mut d_source_l = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_READ_ONLY,
                 num_sources,
@@ -124,7 +162,7 @@ impl Executor for GpuExecutor {
             )?
         };
         let mut d_source_m = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_READ_ONLY,
                 num_sources,
@@ -132,7 +170,7 @@ impl Executor for GpuExecutor {
             )?
         };
         let mut d_results = unsafe {
-            Buffer::<cl_double>::create(
+            Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_WRITE_ONLY,
                 n_ant * n_ant,
@@ -204,7 +242,7 @@ impl Executor for GpuExecutor {
         };
 
         // Read back results
-        let mut results = vec![0.0f64; n_ant * n_ant];
+        let mut results = vec![0.0 as GpuFloat; n_ant * n_ant];
         unsafe {
             self.command_queue.enqueue_read_buffer(
                 &d_results,
@@ -215,7 +253,15 @@ impl Executor for GpuExecutor {
             )?
         };
 
-        let fim = Array2::from_shape_vec((n_ant, n_ant), results)?;
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "gpu-single")] {
+                let results_f64: Vec<f64> = results.into_iter().map(|x| x as f64).collect();
+            } else {
+                let results_f64: Vec<f64> = results;
+            }
+        }
+
+        let fim: Array2<f64> = Array2::from_shape_vec((n_ant, n_ant), results_f64)?;
         let crb = fim.inv()?;
         Ok(crb)
     }

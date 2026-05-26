@@ -1,9 +1,14 @@
+#ifdef SINGLE
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif
 
-kernel void calculate_crb_kernel(const int n_ant, global const double
-*baselines_x, global const double *baselines_y, const int n_sources, global
-const double *source_intensities, global const double* source_l, global const
-double* source_m, double lambda, double sigma, global double* result) {
+typedef REAL  real_t;
+typedef REAL2 real2_t;
+
+kernel void calculate_crb_kernel(const int n_ant, global const real_t
+*baselines_x, global const real_t *baselines_y, const int n_sources, global
+const real_t *source_intensities, global const real_t* source_l, global const
+real_t* source_m, real_t lambda, real_t sigma, global real_t* result) {
 
     // `result` will hold the final FIM. Inversion will happen on the host.
     // Each thread will work on an individual FIM matrix element, no reduction needed
@@ -13,12 +18,12 @@ double* source_m, double lambda, double sigma, global double* result) {
 
     size_t g_id = get_global_id(0);
 
-    double u_ab = baselines_x[g_id] / lambda;
-    double v_ab = baselines_y[g_id] / lambda ;
+    real_t u_ab = baselines_x[g_id] / lambda;
+    real_t v_ab = baselines_y[g_id] / lambda ;
 
-    double2 s_ab = (double2)(0.0, 0.0);
+    real2_t s_ab = (real2_t)(0.0, 0.0);
     for (int i_source = 0; i_source < n_sources; i_source++) {
-        double phase_arg = -2.0 * M_PI * (u_ab * source_l[i_source] + v_ab * source_m[i_source]);
+        real_t phase_arg = -(real_t)2.0 * (real_t)M_PI * (u_ab * source_l[i_source] + v_ab * source_m[i_source]);
         s_ab.x += source_intensities[i_source] * cos(phase_arg);
         s_ab.y += source_intensities[i_source] * sin(phase_arg);
     }
