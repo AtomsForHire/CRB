@@ -15,7 +15,10 @@ use srclist::*;
 use log::{debug, info, warn};
 use thiserror::Error;
 
-use crate::{config::Config, math::create_baselines};
+use crate::{
+    config::Config,
+    math::{Executor, cpu::CpuExecutor, create_baselines},
+};
 
 pub mod config;
 
@@ -117,6 +120,12 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     let mut gain_unc_array = Array2::<f64>::zeros((n_stations, num_freq));
     let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, n_stations));
 
+    let executor: Box<dyn Executor> = if config.use_gpu {
+        unimplemented!();
+    } else {
+        Box::new(CpuExecutor::new())
+    };
+
     // Perform the loop
     for (freq_idx, freq) in freq_array.iter().enumerate() {
         info!("=== Freq: {freq:.1} ===");
@@ -209,7 +218,7 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
 
         // =====================================================================
         // Calculate CRB
-        let crb = math::calculate_crb(
+        let crb = executor.calculate_crb(
             n_stations,
             &baselines_xy,
             &sorted_source_intensities,
