@@ -234,8 +234,8 @@ impl Executor for GpuExecutor {
                 .set_arg(&d_source_intensities)
                 .set_arg(&d_source_l)
                 .set_arg(&d_source_m)
-                .set_arg(&lambda)
-                .set_arg(&sigma)
+                .set_arg(&(lambda as GpuFloat))
+                .set_arg(&(sigma as GpuFloat))
                 .set_arg(&d_results)
                 .set_global_work_size(n_ant * n_ant)
                 .enqueue_nd_range(&self.command_queue)?

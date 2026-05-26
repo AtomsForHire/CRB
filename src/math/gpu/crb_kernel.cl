@@ -17,13 +17,13 @@ real_t* source_m, real_t lambda, real_t sigma, global real_t* result) {
     /* size_t l_size = get_local_size(0); // Size of work group */
 
     size_t g_id = get_global_id(0);
-
     real_t u_ab = baselines_x[g_id] / lambda;
     real_t v_ab = baselines_y[g_id] / lambda ;
 
     real2_t s_ab = (real2_t)(0.0, 0.0);
     for (int i_source = 0; i_source < n_sources; i_source++) {
         real_t phase_arg = -(real_t)2.0 * (real_t)M_PI * (u_ab * source_l[i_source] + v_ab * source_m[i_source]);
+        //printf("source_l: %f, source_m: %f, phase arg: %f\n", source_l[i_source], source_m[i_source], phase_arg);
         s_ab.x += source_intensities[i_source] * cos(phase_arg);
         s_ab.y += source_intensities[i_source] * sin(phase_arg);
     }
