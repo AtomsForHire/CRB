@@ -1,5 +1,6 @@
 pub mod cpu;
 pub mod error;
+pub mod gpu;
 
 use error::MathError;
 use num_complex::*;
