@@ -55,7 +55,7 @@ pub(crate) fn create_baselines(tel_layout: &tm::CoordinateList) -> Array3<f64> {
 }
 
 pub(crate) trait Executor {
-    fn calculate_crb(
+    fn calculate_fim(
         &self,
         n_ant: usize,
         baselines_xy: &Array3<f64>,

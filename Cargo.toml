@@ -17,6 +17,7 @@ fitsio-sys = "0.5.7"
 indexmap = {version = "2.14.0", features = ["rayon", "serde"] }
 io = "0.0.2"
 itertools = "0.14.0"
+kuva = { version = "0.2.0", features = ["png"] }
 lazy_static = "1.5.0"
 log = "0.4.29"
 marlu = { version = "0.17.0", features = ["serde"] }

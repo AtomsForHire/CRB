@@ -30,11 +30,12 @@ real_t* source_m, real_t lambda, real_t sigma, global real_t* result) {
 
     result[g_id] = s_ab.x * s_ab.x + s_ab.y * s_ab.y;
 
-    int a = (int)(g_id / n_ant);
-    int b = (int)(g_id % n_ant);
-    if (a == b) {
-        result[g_id] *= 131;
-    }
+    // int a = (int)(g_id / n_ant);
+    // int b = (int)(g_id % n_ant);
+    // if (a == b) {
+    //     // result[g_id] *= (real_t)131;
+    //     // result[g_id] *= (real_t)2.0;
+    // }
 
     result[g_id] *= 2.0/(sigma * sigma);
 }

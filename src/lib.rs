@@ -5,6 +5,7 @@ use std::{
 mod beam;
 mod math;
 mod save;
+use ndarray_linalg::{Inverse, error::LinalgError};
 use save::WriteToFile;
 mod srclist;
 mod tm;
@@ -23,6 +24,7 @@ use crate::{
         create_baselines,
         gpu::{self, GpuExecutor},
     },
+    save::SaveFigure,
 };
 
 pub mod config;
@@ -47,8 +49,14 @@ pub enum RunError {
     #[error("Math error: {0}")]
     MathError(#[from] math::error::MathError),
 
+    #[error("LinAlg error: {0}")]
+    LinAlgError(#[from] LinalgError),
+
     #[error("GPU error: {0}")]
     GpuError(#[from] gpu::error::GpuError),
+
+    #[error("Error: {0}")]
+    DynError(#[from] Box<dyn std::error::Error + 'static>),
 }
 
 fn compare_f64(a: &f64, b: &f64) -> std::cmp::Ordering {
@@ -127,6 +135,8 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     // Saving arrays
     let mut gain_unc_array = Array2::<f64>::zeros((n_stations, num_freq));
     let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, n_stations));
+    let mut crb_save = Array2::<f64>::zeros((n_stations, n_stations));
+    let mut fim_save = Array2::<f64>::zeros((n_stations, n_stations));
 
     let executor: Box<dyn Executor> = if config.use_gpu {
         Box::new(GpuExecutor::new()?)
@@ -226,7 +236,7 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
 
         // =====================================================================
         // Calculate CRB
-        let crb = executor.calculate_crb(
+        let fim = executor.calculate_fim(
             n_stations,
             &baselines_xy,
             &sorted_source_intensities,
@@ -234,6 +244,12 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
             lambda_m,
             re,
         )?;
+
+        fim_save.assign(&fim);
+
+        let crb = fim.inv()?;
+
+        crb_save.assign(&crb);
 
         let mean_gain_unc = crb
             .clone()
@@ -271,6 +287,20 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
 
     crb_row_per_freq.write_to_file(&config.output.join("crb_first_row_per_freq.txt"))?;
     gain_unc_array.write_to_file(&config.output.join("gain_uncertainties.txt"))?;
+    crb_save.write_to_file(&config.output.join("final_crb_mat.txt"))?;
+    fim_save.write_to_file(&config.output.join("final_fim_mat.txt"))?;
+    crb_save.save_to_heatmap(
+        "CRB in final frequency".to_string(),
+        &config.output.join("crb.png"),
+    )?;
+    fim_save.save_to_heatmap(
+        "FIM in final frequency".to_string(),
+        &config.output.join("fim.png"),
+    )?;
+    fim_save.save_to_surface(
+        "FIM in final frequency".to_string(),
+        &config.output.join("fim_surface.png"),
+    )?;
 
     Ok(())
 }

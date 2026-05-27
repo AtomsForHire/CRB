@@ -81,7 +81,7 @@ impl GpuExecutor {
 }
 
 impl Executor for GpuExecutor {
-    fn calculate_crb(
+    fn calculate_fim(
         &self,
         n_ant: usize,
         baselines_xy: &Array3<f64>,
@@ -262,7 +262,7 @@ impl Executor for GpuExecutor {
         }
 
         let fim: Array2<f64> = Array2::from_shape_vec((n_ant, n_ant), results_f64)?;
-        let crb = fim.inv()?;
-        Ok(crb)
+        //let crb = fim.inv()?;
+        Ok(fim)
     }
 }

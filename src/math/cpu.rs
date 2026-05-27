@@ -1,4 +1,5 @@
 use super::error::MathError;
+use log::debug;
 use num_complex::*;
 use std::f64::consts::PI;
 
@@ -18,7 +19,7 @@ impl CpuExecutor {
 }
 
 impl Executor for CpuExecutor {
-    fn calculate_crb(
+    fn calculate_fim(
         &self,
         n_ant: usize,
         baselines_xy: &Array3<f64>,
@@ -30,8 +31,6 @@ impl Executor for CpuExecutor {
         let num_sources: usize = source_intensities.len();
 
         let baselines = baselines_xy / lambda;
-        let sum_b: f64 = source_intensities.iter().sum();
-        let diagonal_term_additive: f64 = 131.0 * sum_b * sum_b;
 
         // Let each thread work on a different row of the matrix
         // then combine everything with 'reduce_with'
@@ -52,9 +51,9 @@ impl Executor for CpuExecutor {
 
                     local_fim[[a, b]] = s_ab.norm_sqr();
 
-                    if a == b {
-                        local_fim[[a, b]] *= 131.0; // diagonal_term_additive;
-                    }
+                    // if a == b {
+                    //     local_fim[[a, b]] *= 131.0; // diagonal_term_additive;
+                    // }
                 }
 
                 local_fim
@@ -71,7 +70,13 @@ impl Executor for CpuExecutor {
 
         fim = 2.0 / sigma.powi(2) * fim;
 
-        let crb = fim.inv()?;
-        return Ok(crb);
+        debug!(
+            "Average of all FIM elements: {:?}, Var: {:?}",
+            fim.mean(),
+            fim.var(0.0)
+        );
+
+        // let crb = fim.inv()?;
+        return Ok(fim);
     }
 }
