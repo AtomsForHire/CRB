@@ -133,10 +133,10 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     );
 
     // Saving arrays
-    let mut gain_unc_array = Array2::<f64>::zeros((n_stations, num_freq));
-    let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, n_stations));
-    let mut crb_save = Array2::<f64>::zeros((n_stations, n_stations));
-    let mut fim_save = Array2::<f64>::zeros((n_stations, n_stations));
+    let mut gain_unc_array = Array2::<f64>::zeros((2 * n_stations, num_freq));
+    let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, 2 * n_stations));
+    let mut crb_save = Array2::<f64>::zeros((2 * n_stations, 2 * n_stations));
+    let mut fim_save = Array2::<f64>::zeros((2 * n_stations, 2 * n_stations));
 
     let executor: Box<dyn Executor> = if config.use_gpu {
         Box::new(GpuExecutor::new()?)
@@ -251,12 +251,17 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
 
         crb_save.assign(&crb);
 
-        let mean_gain_unc = crb
-            .clone()
-            .into_diag()
-            .mapv(|x| x.sqrt())
+        let uncs = crb.clone().into_diag().mapv(|x| x.sqrt());
+
+        let mean_gain_unc = uncs
+            .slice(s![0..n_stations])
             .mean()
-            .expect("Unable to calculate mean gain unc");
+            .expect("Couldn't calculate the mean of gain uncertainties");
+
+        let mean_phase_unc = uncs
+            .slice(s![n_stations..])
+            .mean()
+            .expect("Couldn't calculate mean of phase uncertainties");
 
         crb_row_per_freq.slice_mut(s![freq_idx, ..]).assign(
             &crb.clone()
@@ -277,7 +282,8 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
             "Sqrt of CRB Diagonal: {:?}",
             crb.clone().into_diag().mapv(|x| x.sqrt())
         );
-        info!("Mean gain uncertainty: {mean_gain_unc}");
+        info!("Mean gain uncertainty:  {mean_gain_unc}");
+        info!("Mean phase uncertainty: {mean_phase_unc}");
     }
 
     // Save results

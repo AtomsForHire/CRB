@@ -31,14 +31,21 @@ impl Executor for CpuExecutor {
         let num_sources: usize = source_intensities.len();
 
         let baselines = baselines_xy / lambda;
-        let diag_term = 2.0 * (n_ant as f64 + 1.0);
+        let diag_term_gains = 2.0 * (n_ant as f64 + 1.0);
+        let diag_term_phases = 2.0 * (n_ant as f64 - 1.0);
 
-        // Let each thread work on a different row of the matrix
-        // then combine everything with 'reduce_with'
-        let mut fim = (0usize..n_ant)
+        // Initialise FIM, top left quadrant holds information on gain-gain cross variances
+        // bottom right quadrant holds information on phase-phase cross variances
+        // everywhere else is 0.
+        let mut fim = Array2::<f64>::zeros((2 * n_ant, 2 * n_ant));
+
+        // Populate top left quadrant
+        let mut top_left = fim.slice_mut(s![0..n_ant, 0..n_ant]);
+        top_left
+            .axis_iter_mut(Axis(0))
             .into_par_iter()
-            .map(|a| {
-                let mut local_fim = Array2::<f64>::zeros((n_ant, n_ant));
+            .enumerate()
+            .for_each(|(a, mut row)| {
                 for b in a..n_ant {
                     let u_ab = baselines[[a, b, 0]];
                     let v_ab = baselines[[a, b, 1]];
@@ -50,23 +57,44 @@ impl Executor for CpuExecutor {
                         s_ab += source_intensities[[idx_i]] * (Complex64::i() * phase_arg).exp();
                     }
 
-                    local_fim[[a, b]] = s_ab.norm_sqr();
-
+                    row[[b]] = s_ab.norm_sqr();
                     if a == b {
-                        local_fim[[a, b]] *= diag_term;
+                        row[[b]] *= diag_term_gains;
                     } else {
-                        local_fim[[a, b]] *= 2.0;
+                        row[[b]] *= 2.0;
                     }
                 }
+            });
 
-                local_fim
-            })
-            .reduce_with(|accum, local_fim| accum + local_fim)
-            .ok_or_else(|| MathError::CrbError)?;
+        let mut bottom_right = fim.slice_mut(s![n_ant.., n_ant..]);
+        bottom_right
+            .axis_iter_mut(Axis(0))
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(a, mut row)| {
+                for b in a..n_ant {
+                    let u_ab = baselines[[a, b, 0]];
+                    let v_ab = baselines[[a, b, 1]];
+                    let mut s_ab: Complex64 = Complex64::new(0.0, 0.0);
+                    for idx_i in 0usize..num_sources {
+                        let phase_arg: f64 = -2.0
+                            * PI
+                            * (u_ab * source_lmn[[idx_i, 0]] + v_ab * source_lmn[[idx_i, 1]]);
+                        s_ab += source_intensities[[idx_i]] * (Complex64::i() * phase_arg).exp();
+                    }
+
+                    row[[b]] = s_ab.norm_sqr();
+                    if a == b {
+                        row[[b]] *= diag_term_phases;
+                    } else {
+                        row[[b]] *= -2.0;
+                    }
+                }
+            });
 
         // Only calculated the 'top fin' so fill in the bottom fin
-        for a in 0usize..n_ant {
-            for b in a..n_ant {
+        for a in 0usize..(2 * n_ant) {
+            for b in a..(2 * n_ant) {
                 fim[[b, a]] = fim[[a, b]].conj();
             }
         }
