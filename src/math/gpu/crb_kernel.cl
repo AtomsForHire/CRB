@@ -17,21 +17,24 @@ real_t* source_m, real_t lambda, real_t sigma, global real_t* result) {
     /* size_t l_size = get_local_size(0); // Size of work group */
 
     size_t g_id = get_global_id(0);
-    int a = (int)(g_id / (2 * n_ant));
-    int b = (int)(g_id % (2 * n_ant));
+    int i = (int)(g_id / (2 * n_ant));
+    int j = (int)(g_id % (2 * n_ant));
 
     // Determine if thread is within the top-right or bottom-left region
-    bool row_is_in_gains = (a < n_ant);
-    bool col_is_in_gains = (b < n_ant);
+    bool row_is_in_gains = (i < n_ant);
+    bool col_is_in_gains = (j < n_ant);
 
     if ((row_is_in_gains && !col_is_in_gains) || (!row_is_in_gains && col_is_in_gains)) {
         result[g_id] = (real_t)0.0;
         return;
     }
 
-    real_t u_ab = baselines_x[g_id] / lambda;
-    real_t v_ab = baselines_y[g_id] / lambda ;
+    int ant_a = row_is_in_gains ? i : (i - n_ant);
+    int ant_b = col_is_in_gains ? j : (j - n_ant);
+    int baseline_idx = ant_a * n_ant + ant_b;
 
+    real_t u_ab = baselines_x[baseline_idx] / lambda;
+    real_t v_ab = baselines_y[baseline_idx] / lambda ;
 
     real_t diag_term_gains = (real_t)2.0 * ((real_t)n_ant + (real_t)1.0); 
     real_t diag_term_phases = (real_t)2.0 * ((real_t)n_ant - (real_t)1.0); 
@@ -46,7 +49,7 @@ real_t* source_m, real_t lambda, real_t sigma, global real_t* result) {
 
     result[g_id] = s_ab.x * s_ab.x + s_ab.y * s_ab.y;
 
-    bool is_diagonal = (a == b);
+    bool is_diagonal = (i == j);
 
     if (row_is_in_gains && col_is_in_gains) {
         real_t factor = is_diagonal ? diag_term_gains : (real_t)2.0;
