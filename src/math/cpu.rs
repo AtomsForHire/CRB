@@ -31,6 +31,7 @@ impl Executor for CpuExecutor {
         let num_sources: usize = source_intensities.len();
 
         let baselines = baselines_xy / lambda;
+        let diag_term = 2.0 * (n_ant as f64 + 1.0);
 
         // Let each thread work on a different row of the matrix
         // then combine everything with 'reduce_with'
@@ -51,9 +52,11 @@ impl Executor for CpuExecutor {
 
                     local_fim[[a, b]] = s_ab.norm_sqr();
 
-                    // if a == b {
-                    //     local_fim[[a, b]] *= 131.0; // diagonal_term_additive;
-                    // }
+                    if a == b {
+                        local_fim[[a, b]] *= diag_term;
+                    } else {
+                        local_fim[[a, b]] *= 2.0;
+                    }
                 }
 
                 local_fim
