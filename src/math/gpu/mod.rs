@@ -1,7 +1,7 @@
 pub mod error;
 
 use super::error::MathError;
-use log::info;
+use log::{debug, info};
 use num_complex::*;
 use opencl3::memory::{Buffer, CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY};
 use opencl3::program::Program;
@@ -173,7 +173,7 @@ impl Executor for GpuExecutor {
             Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_WRITE_ONLY,
-                n_ant * n_ant,
+                4 * n_ant * n_ant,
                 ptr::null_mut(),
             )?
         };
@@ -237,12 +237,12 @@ impl Executor for GpuExecutor {
                 .set_arg(&(lambda as GpuFloat))
                 .set_arg(&(sigma as GpuFloat))
                 .set_arg(&d_results)
-                .set_global_work_size(n_ant * n_ant)
+                .set_global_work_size(4 * n_ant * n_ant)
                 .enqueue_nd_range(&self.command_queue)?
         };
 
         // Read back results
-        let mut results = vec![0.0 as GpuFloat; n_ant * n_ant];
+        let mut results = vec![0.0 as GpuFloat; 4 * n_ant * n_ant];
         unsafe {
             self.command_queue.enqueue_read_buffer(
                 &d_results,
@@ -261,8 +261,9 @@ impl Executor for GpuExecutor {
             }
         }
 
-        let fim: Array2<f64> = Array2::from_shape_vec((n_ant, n_ant), results_f64)?;
-        //let crb = fim.inv()?;
+        let fim: Array2<f64> = Array2::from_shape_vec((2 * n_ant, 2 * n_ant), results_f64)?;
+
+        debug!("FIM: {:?}", fim);
         Ok(fim)
     }
 }
