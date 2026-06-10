@@ -133,10 +133,10 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     );
 
     // Saving arrays
-    let mut gain_unc_array = Array2::<f64>::zeros((2 * n_stations, num_freq));
-    let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, 2 * n_stations));
-    let mut crb_save = Array2::<f64>::zeros((2 * n_stations, 2 * n_stations));
-    let mut fim_save = Array2::<f64>::zeros((2 * n_stations, 2 * n_stations));
+    let mut gain_unc_array = Array2::<f64>::zeros((2 * n_stations - 1, num_freq));
+    let mut crb_row_per_freq = Array2::<f64>::zeros((num_freq, 2 * n_stations - 1));
+    let mut crb_save = Array2::<f64>::zeros((2 * n_stations - 1, 2 * n_stations - 1));
+    let mut fim_save = Array2::<f64>::zeros((2 * n_stations - 1, 2 * n_stations - 1));
 
     let executor: Box<dyn Executor> = if config.use_gpu {
         Box::new(GpuExecutor::new()?)
@@ -295,18 +295,18 @@ pub fn run(config_path: PathBuf) -> Result<(), RunError> {
     gain_unc_array.write_to_file(&config.output.join("gain_uncertainties.txt"))?;
     crb_save.write_to_file(&config.output.join("final_crb_mat.txt"))?;
     fim_save.write_to_file(&config.output.join("final_fim_mat.txt"))?;
-    crb_save.save_to_heatmap(
-        "CRB in final frequency".to_string(),
-        &config.output.join("crb.png"),
-    )?;
-    fim_save.save_to_heatmap(
-        "FIM in final frequency".to_string(),
-        &config.output.join("fim.png"),
-    )?;
-    fim_save.save_to_surface(
-        "FIM in final frequency".to_string(),
-        &config.output.join("fim_surface.png"),
-    )?;
+    // crb_save.save_to_heatmap(
+    //     "CRB in final frequency".to_string(),
+    //     &config.output.join("crb.png"),
+    // )?;
+    // fim_save.save_to_heatmap(
+    //     "FIM in final frequency".to_string(),
+    //     &config.output.join("fim.png"),
+    // )?;
+    // fim_save.save_to_surface(
+    //     "FIM in final frequency".to_string(),
+    //     &config.output.join("fim_surface.png"),
+    // )?;
 
     Ok(())
 }
