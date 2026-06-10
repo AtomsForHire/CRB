@@ -1,7 +1,7 @@
 pub mod error;
 
 use super::error::MathError;
-use log::info;
+use log::{debug, info, trace};
 use num_complex::*;
 use opencl3::memory::{Buffer, CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY};
 use opencl3::program::Program;
@@ -34,6 +34,8 @@ pub(crate) struct GpuExecutor {
     context: Context,
     command_queue: CommandQueue,
     kernel: Kernel,
+    gain_diag: Kernel,
+    phase_diag: Kernel,
 }
 
 const KERNEL: &str = include_str!("./crb_kernel.cl");
@@ -69,13 +71,18 @@ impl GpuExecutor {
         let program = Program::create_and_build_from_source(&context, KERNEL, build_options)
             .expect("Could not create program on device");
 
-        // Create kernel
+        // Create kernels
         let kernel = Kernel::create(&program, "calculate_crb_kernel")?;
+
+        let gain_diag = Kernel::create(&program, "calculate_gain_diag")?;
+        let phase_diag = Kernel::create(&program, "calculate_phase_diag")?;
 
         Ok(Self {
             context,
             command_queue,
             kernel,
+            gain_diag,
+            phase_diag,
         })
     }
 }
@@ -173,7 +180,7 @@ impl Executor for GpuExecutor {
             Buffer::<ClFloat>::create(
                 &self.context,
                 CL_MEM_WRITE_ONLY,
-                n_ant * n_ant,
+                4 * n_ant * n_ant,
                 ptr::null_mut(),
             )?
         };
@@ -237,12 +244,40 @@ impl Executor for GpuExecutor {
                 .set_arg(&(lambda as GpuFloat))
                 .set_arg(&(sigma as GpuFloat))
                 .set_arg(&d_results)
-                .set_global_work_size(n_ant * n_ant)
+                .set_global_work_size(4 * n_ant * n_ant)
                 .enqueue_nd_range(&self.command_queue)?
         };
 
+        trace!("Executed main kernel");
+        let gain_diag_event = unsafe {
+            ExecuteKernel::new(&self.gain_diag)
+                .set_arg(&(n_ant as i32))
+                .set_arg(&d_baselines_x)
+                .set_arg(&d_baselines_y)
+                .set_arg(&(num_sources as i32))
+                .set_arg(&d_source_intensities)
+                .set_arg(&d_source_l)
+                .set_arg(&d_source_m)
+                .set_arg(&(lambda as GpuFloat))
+                .set_arg(&(sigma as GpuFloat))
+                .set_arg(&d_results)
+                .set_global_work_size(2 * n_ant)
+                .enqueue_nd_range(&self.command_queue)?
+        };
+        trace!("Executed gain diag kernel");
+
+        let phase_diag_event = unsafe {
+            ExecuteKernel::new(&self.phase_diag)
+                .set_arg(&(n_ant as i32))
+                .set_arg(&(sigma as GpuFloat))
+                .set_arg(&d_results)
+                .set_global_work_size(2 * n_ant)
+                .enqueue_nd_range(&self.command_queue)?
+        };
+        trace!("Executed phase diag kernel");
+
         // Read back results
-        let mut results = vec![0.0 as GpuFloat; n_ant * n_ant];
+        let mut results = vec![0.0 as GpuFloat; 4 * n_ant * n_ant];
         unsafe {
             self.command_queue.enqueue_read_buffer(
                 &d_results,
@@ -261,8 +296,26 @@ impl Executor for GpuExecutor {
             }
         }
 
-        let fim: Array2<f64> = Array2::from_shape_vec((n_ant, n_ant), results_f64)?;
-        //let crb = fim.inv()?;
-        Ok(fim)
+        let mut fim: Array2<f64> = Array2::from_shape_vec((2 * n_ant, 2 * n_ant), results_f64)?;
+
+        let ref_idx = n_ant - 1;
+        let ref_row = n_ant + ref_idx; // its position in the full FIM
+
+        let indices: Vec<usize> = (0..2 * n_ant).filter(|&i| i != ref_row).collect();
+
+        let mut reduced_fim = fim.select(Axis(0), &indices).select(Axis(1), &indices);
+
+        // Scale everything up
+        reduced_fim *= 4.0 / (sigma * sigma);
+
+        // Scale diagonals back down
+        reduced_fim
+            .diag_mut()
+            .iter_mut()
+            .for_each(|val| *val /= 2.0);
+
+        trace!("FIM: {:?}", fim);
+
+        Ok(reduced_fim)
     }
 }
